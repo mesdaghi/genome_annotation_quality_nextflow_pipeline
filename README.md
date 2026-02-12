@@ -184,6 +184,6 @@ Nextflow
 
 ## Author
 
-`<Shahram Mesdaghi>`{=html}
+`Shahram Mesdaghi
 
 ------------------------------------------------------------------------
