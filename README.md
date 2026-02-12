@@ -123,15 +123,12 @@ Intermediate outputs: - `protenix_out/` - `*_all_predictions/` -
 
 ### Histogram Example
 
-(Add screenshot here once available)
 
-    plddt_density_scipy_after_461.png
+    ![Alt text describing the image](plddt_density_scipy_after_461.png)
 
 ### KDE Density Example
 
-(Add screenshot here once available)
-
-    plddt_density_scipy_after_461.png
+![Alt text describing the image](plddt_density_scipy_after_461.png)
 
 ------------------------------------------------------------------------
 
