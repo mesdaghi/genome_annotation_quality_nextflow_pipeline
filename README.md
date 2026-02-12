@@ -121,10 +121,6 @@ Intermediate outputs: - `protenix_out/` - `*_all_predictions/` -
 
 ## Example Plots
 
-### Histogram Example
-
-
-    ![Alt text describing the image](plddt_density_scipy_after_461.png)
 
 ### KDE Density Example
 
