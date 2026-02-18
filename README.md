@@ -145,6 +145,24 @@ Intermediate outputs:
 
 ------------------------------------------------------------------------
 
+## Example Output Images
+
+### pLDDT Distribution Example
+
+Place example images inside:
+
+    docs/images/
+
+Then reference them in README like:
+
+    ![pLDDT KDE Example](docs/images/plddt_density_example.png)
+
+### Metapredict Disorder Example
+
+    ![Metapredict KDE Example](docs/images/metapredict_density_example.png)
+
+------------------------------------------------------------------------
+
 ## Reference Datasets
 
 ### pLDDT Reference
