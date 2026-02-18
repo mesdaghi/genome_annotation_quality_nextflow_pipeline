@@ -112,16 +112,16 @@ export PROTENIX_CACHE=/home/<USER>/protenix_cache
 ### Basic Run
 
 ``` bash
-nextflow run main.nf -profile slurm --chunk_size 100
+nextflow run main.nf  -profile slurm --fasta after_461.fasta --chunk_size 100
 ```
 
 ### Parameters
 
-  Parameter      Description
-  -------------- ----------------------------------------
-  --chunk_size   Number of sequences per Protenix chunk
+  | Parameter     | Description                           |
+|---------------|---------------------------------------|
+| --chunk_size  | Number of sequences per Protenix chunk|
+| --fasta       | Path to FASTA                          |
 
-------------------------------------------------------------------------
 
 ## Output Structure
 
@@ -176,16 +176,16 @@ proteomes.
 
 ## Pipeline Processes
 
-  Process                Description
-  ---------------------- --------------------------------------
-  FASTA_TO_JSON          Converts FASTA → Protenix JSON
-  SPLIT_JSON             Splits JSON into chunk files
-  PROTENIX_PREDICT       Runs Protenix inference
-  COLLECT_CHUNKS         Merges chunk prediction outputs
-  PROCESS_MODELS         Extracts pLDDT values into PKL
-  PLOT_PLDDT             Generates structure confidence plots
-  METAPREDICT_DISORDER   Runs disorder prediction
-  PLOT_METAPREDICT       Generates disorder comparison plots
+| Process               | Description                             |
+|-----------------------|-----------------------------------------|
+| FASTA_TO_JSON         | Converts FASTA → Protenix JSON         |
+| SPLIT_JSON            | Splits JSON into chunk files            |
+| PROTENIX_PREDICT      | Runs Protenix inference                 |
+| COLLECT_CHUNKS        | Merges chunk prediction outputs         |
+| PROCESS_MODELS        | Extracts pLDDT values into PKL          |
+| PLOT_PLDDT            | Generates structure confidence plots    |
+| METAPREDICT_DISORDER  | Runs disorder prediction                 |
+| PLOT_METAPREDICT      | Generates disorder comparison plots     |
 
 ------------------------------------------------------------------------
 
