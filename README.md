@@ -151,11 +151,11 @@ Intermediate outputs:
 
 
 
-    ![pLDDT KDE Example](plddt_density_scipy_after_461.png)
+    ![pLDDT KDE Example]('plddt_density_scipy_after_461.png')
 
 ### Metapredict Disorder Example
 
-    ![Metapredict KDE Example](mean_disorder_density_scipy.png)
+    ![Metapredict KDE Example]('mean_disorder_density_scipy.png')
 
 ------------------------------------------------------------------------
 
