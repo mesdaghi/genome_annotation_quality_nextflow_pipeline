@@ -149,11 +149,7 @@ Intermediate outputs:
 
 ### pLDDT Distribution Example
 
-Place example images inside:
 
-    docs/images/
-
-Then reference them in README like:
 
     ![pLDDT KDE Example](plddt_density_scipy_after_461.png)
 
