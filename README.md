@@ -155,11 +155,11 @@ Place example images inside:
 
 Then reference them in README like:
 
-    ![pLDDT KDE Example](docs/images/plddt_density_example.png)
+    ![pLDDT KDE Example](plddt_density_scipy_after_461.png)
 
 ### Metapredict Disorder Example
 
-    ![Metapredict KDE Example](docs/images/metapredict_density_example.png)
+    ![Metapredict KDE Example](mean_disorder_density_scipy.png)
 
 ------------------------------------------------------------------------
 
