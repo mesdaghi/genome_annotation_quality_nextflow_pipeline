@@ -168,7 +168,8 @@ Then reference them in README like:
 
 ------------------------------------------------------------------------
 ## Reference Datasets
-
+### Protein Model Reference  
+    bin/plddt_model_organisms.csv
 ### Disorder Reference
 
     bin/combined_proteome_disorder.pkl
