@@ -160,7 +160,7 @@ Then reference them in README like:
 
 ### Metapredict Disorder Example
 
-![Metapredict KDE Example](mean_disorder_density_scipy.png)
+![Metapredict KDE Example](after_461_metapredict_mean_disorder_density_scipy.png)
 
 ### PSAURON Example
 
