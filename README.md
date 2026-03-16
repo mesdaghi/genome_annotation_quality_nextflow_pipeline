@@ -48,7 +48,116 @@ PSAURON scores enable:
 This pipeline integrates PSAURON scoring directly into structure and
 disorder prediction workflows for multi-metric genome annotation QC.
 
-------------------------------------------------------------------------
+
+
+## Installation Instructions
+
+Follow these steps to install and set up the **Nextflow Genome Annotation Quality Pipeline**:
+
+### 1. Install Nextflow
+
+Nextflow is required to run the pipeline.
+
+```bash
+
+curl -s https://get.nextflow.io | bash
+
+mv nextflow ~/bin/
+
+nextflow -version
+```
+
+> Ensure `~/bin` is in your `PATH` or adjust the path accordingly.
+
+---
+
+### 2. Install Java (if needed)
+
+Nextflow requires Java 8+:
+
+```bash
+
+sudo apt-get install openjdk-11-jdk
+
+
+java -version
+```
+
+---
+
+### 3. Set Up Python Environments
+
+The pipeline requires separate Python environments for **Protenix**, **Metapredict**, **PSAURON**.
+
+#### a. Protenix Environment
+
+```bash
+conda create -n protenix_env python=3.10
+conda activate protenix_env
+pip install protenix
+```
+
+#### b. Metapredict Environment
+
+```bash
+conda create -n metapredict python=3.10
+conda activate metapredict
+conda install -c conda-forge -c pytorch python=3.11 numpy pytorch scipy cython matplotlib
+pip install metapredict
+```
+
+#### c. PSAURON Environment 
+
+```bash
+conda create -n psauron python=3.10
+conda activate psauron
+pip install psauron
+```
+
+---
+
+### 4. Configure HPC Modules (Optional)
+
+If using SLURM or another cluster scheduler:
+
+```bash
+module load python/3.10
+module load cuda/13.0.2   
+```
+
+---
+
+### 5. Download the Pipeline Repository
+
+```bash
+git clone https://github.com/mesdaghi/genome_annotation_quality_nextflow_pipeline
+cd genome_annotation_quality_nextflow_pipeline
+```
+
+---
+
+### 6. Run a Test Pipeline
+
+```bash
+nextflow run main.nf -profile slurm --fasta example.fasta --chunk_size 100
+```
+
+- `--fasta` : Path to input FASTA file  
+- `--chunk_size` : Number of sequences per Protenix chunk  
+
+All output (plots, PKL files, CSVs) will be stored under `results/`.
+
+---
+
+### Notes
+
+- Make sure your environments are accessible on the compute nodes.  
+- Set `PROTENIX_CACHE` before running Protenix predictions.  
+- GPU is recommended for Metapredict and Protenix-Mini for speed.
+
+
+
+
 
 ## Features
 
