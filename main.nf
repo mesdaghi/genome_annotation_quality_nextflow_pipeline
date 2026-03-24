@@ -249,7 +249,8 @@ process PLOT_PSAURON {
 
 workflow {
 
-    fasta_ch = Channel.fromPath("*.fasta")
+    fasta_ch = Channel
+        .fromPath(params.fasta, checkIfExists: true)
         .map { fasta -> tuple(fasta, fasta.baseName) }
 
     // ================= PROTENIX BRANCH ================= //
