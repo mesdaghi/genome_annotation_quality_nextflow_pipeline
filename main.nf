@@ -108,8 +108,6 @@ process PROCESS_MODELS {
       ${pred_dir} \
       plddt_all_values_${dataset_name}_all_one.pkl
     """
-}
-
 process PLOT_PLDDT {
     tag { dataset_name }
 
@@ -122,7 +120,7 @@ process PLOT_PLDDT {
     tuple val(dataset_name), path(pkl_file)
 
     output:
-    path "*.png"
+    path "plddt_gmm_scatter_${dataset_name}.png"  
 
     script:
     """
