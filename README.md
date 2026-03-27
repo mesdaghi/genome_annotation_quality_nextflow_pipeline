@@ -273,7 +273,7 @@ Then reference them in README like:
 
 ### PSAURON Example
 
-![Metapredict KDE Example](psauron_density_scipy.png)
+![PSAURON Example](psauron_categorical_distribution_new.png)
 
 ------------------------------------------------------------------------
 ## Reference Datasets
