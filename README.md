@@ -259,13 +259,30 @@ Intermediate outputs:
 
 ### pLDDT Distribution Example
 
-Place example images inside:
-
-    docs/images/
-
-Then reference them in README like:
 
 ![pLDDT KDE Example](plddt_density_scipy_after_461.png)
+## Proteome Structural Confidence Landscape
+
+This plot positions each species according to two complementary measures of proteome structural quality derived from AlphaFold pLDDT scores, allowing the query proteome to be interpreted in the context of well-characterised reference organisms.
+
+![Proteome Structural Confidence Landscape](plddt_gmm_scatter.png)
+
+### Axes
+
+**X-axis — GMM Upper Component Proportion**
+Each species' pLDDT distribution is modelled as a two-component Gaussian Mixture Model (GMM), capturing the characteristic bimodal shape seen in most proteomes — a lower-confidence disordered peak and a higher-confidence structured peak. The x-axis shows the weight of the upper (higher pLDDT) component, i.e. the proportion of proteins belonging to the high-confidence structured peak. Species further right have a greater fraction of their proteome in the structured, high-confidence GMM component.
+
+**Y-axis — Proportion ≥70 pLDDT**
+A simpler, threshold-based measure of the same concept — the fraction of proteins with a mean pLDDT ≥ 70, a commonly used cutoff distinguishing confidently modelled from poorly modelled regions. The two axes are expected to correlate, but divergence between them can indicate unusual distributional shapes.
+
+### Colour — Skew
+Points are coloured by the skewness of each species' pLDDT distribution. Negative skew (purple) indicates a distribution pulled toward lower pLDDT values, typical of proteomes with a large disordered or low-complexity fraction. Positive skew (yellow) indicates a tail toward higher confidence values.
+
+### Red circle — Query species
+The input dataset is highlighted with a red circle and bold label, allowing its structural quality profile to be interpreted relative to reference proteomes. Its position gives an intuitive indication of whether the proteome resembles organisms with high structural coverage (top right, e.g. vertebrates) or those with more disordered or low-confidence proteomes (bottom left, e.g. parasitic protozoa).
+
+### GMM initialisation
+To ensure consistent and comparable fits across species, the GMM for each species is initialised using parameters averaged from six reference species — *Drosophila melanogaster*, *Homo sapiens*, *Rattus norvegicus*, *Mus musculus*, *Pan troglodytes*, and *Arabidopsis thaliana* — rather than random starting points.
 
 ### Metapredict Disorder Example
 
