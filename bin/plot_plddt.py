@@ -11,6 +11,7 @@ from scipy.stats import skew
 from sklearn.mixture import GaussianMixture
 import matplotlib.cm as cm
 import matplotlib.colors as mcolors
+from adjustText import adjust_text
 
 if len(sys.argv) != 2:
     print("Usage: python plot_plddt.py <dataset_name>")
@@ -24,10 +25,15 @@ csv_file = os.path.join(os.path.dirname(__file__), "plddt_model_organisms.csv")
 # Cache file
 cache_file = "cached_csv_gmm_metrics_model_organisms.csv"
 
-# ---------- LOAD CSV (all species, no filtering) ----------
+# Species to exclude from CSV
+species_to_exclude = ["Homo_sapiens_2k", "afdb_Homo_sapiens_2k"]
+
+# ---------- LOAD CSV (all species except excluded, HS renamed) ----------
 csv_species_values = {}
 try:
     df_csv = pd.read_csv(csv_file)
+    df_csv["Species"] = df_csv["Species"].replace({"HS": "Homo_sapiens"})
+    df_csv = df_csv[~df_csv["Species"].isin(species_to_exclude)]
     csv_species_values = (
         df_csv.groupby("Species")["Mean_pLDDT"]
         .apply(list)
@@ -172,6 +178,9 @@ metrics = []
 if os.path.exists(cache_file):
     print("Loading cached CSV GMM metrics...")
     csv_metrics_df = pd.read_csv(cache_file)
+    # Apply rename and exclusions to cache in case it was built with old names
+    csv_metrics_df["Species"] = csv_metrics_df["Species"].replace({"HS": "Homo_sapiens"})
+    csv_metrics_df = csv_metrics_df[~csv_metrics_df["Species"].isin(species_to_exclude)]
 else:
     print("Computing CSV GMM metrics (first run)...")
     csv_metrics = []
@@ -234,56 +243,75 @@ norm = mcolors.Normalize(
 )
 cmap = cm.viridis
 
-plt.figure(figsize=(7, 6))
+fig, ax = plt.subplots(figsize=(9, 7))
 
 # Plot all points together coloured by skew
-sc = plt.scatter(
+sc = ax.scatter(
     df_metrics["GMM_upper_prop"],
     df_metrics["Prop_ge_70"],
     c=df_metrics["Skew"],
     cmap=cmap,
     norm=norm,
-    alpha=0.8
+    alpha=0.8,
+    zorder=2
 )
 
-plt.colorbar(sc, label="Skew")
+fig.colorbar(sc, ax=ax, label="Skew")
 
-# Label all CSV species
+# Expand axis limits by 10% on each side to prevent clipping
+x_vals = df_metrics["GMM_upper_prop"]
+y_vals = df_metrics["Prop_ge_70"]
+x_margin = (x_vals.max() - x_vals.min()) * 0.10
+y_margin = (y_vals.max() - y_vals.min()) * 0.10
+ax.set_xlim(x_vals.min() - x_margin, x_vals.max() + x_margin)
+ax.set_ylim(y_vals.min() - y_margin, y_vals.max() + y_margin)
+
+# Build text objects for adjustText — CSV species
+texts = []
 for _, row in df_metrics[~df_metrics["Is_PKL"]].iterrows():
-    plt.text(
-        row["GMM_upper_prop"] + 0.005,
-        row["Prop_ge_70"] + 0.005,
+    t = ax.text(
+        row["GMM_upper_prop"],
+        row["Prop_ge_70"],
         row["Species"],
         fontsize=8
     )
+    texts.append(t)
 
-# Overlay PKL query species with red circle and bold label
+# Overlay PKL query species with red circle — no legend entry
 pkl_points = df_metrics[df_metrics["Is_PKL"]]
 
 if len(pkl_points) > 0:
-    plt.scatter(
+    ax.scatter(
         pkl_points["GMM_upper_prop"],
         pkl_points["Prop_ge_70"],
         facecolors="none",
         edgecolors="red",
         s=200,
         linewidths=2,
-        label="Input PKL Species"
+        zorder=3
     )
     for _, row in pkl_points.iterrows():
-        plt.text(
-            row["GMM_upper_prop"] + 0.005,
-            row["Prop_ge_70"] + 0.005,
+        t = ax.text(
+            row["GMM_upper_prop"],
+            row["Prop_ge_70"],
             row["Species"],
-            fontsize=10,
+            fontsize=9,
             fontweight="bold",
             color="red"
         )
+        texts.append(t)
 
-plt.xlabel("GMM Upper Component Proportion")
-plt.ylabel("Proportion ≥70 pLDDT")
-plt.title(f"GMM Upper Peak vs ≥70 Proportion ({dataset_name})")
-plt.legend()
+# Auto-adjust all labels to avoid overlap
+adjust_text(
+    texts,
+    ax=ax,
+    expand=(1.3, 1.5),
+    arrowprops=dict(arrowstyle="-", color="grey", lw=0.5)
+)
+
+ax.set_xlabel("GMM Upper Component Proportion")
+ax.set_ylabel("Proportion ≥70 pLDDT")
+ax.set_title(f"GMM Upper Peak vs ≥70 Proportion ({dataset_name})")
 plt.tight_layout()
 plt.savefig(f"plddt_gmm_scatter_{dataset_name}.png", dpi=300)
 plt.close()
