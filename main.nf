@@ -108,6 +108,8 @@ process PROCESS_MODELS {
       ${pred_dir} \
       plddt_all_values_${dataset_name}_all_one.pkl
     """
+}
+
 process PLOT_PLDDT {
     tag { dataset_name }
 
@@ -120,7 +122,7 @@ process PLOT_PLDDT {
     tuple val(dataset_name), path(pkl_file)
 
     output:
-    path "plddt_gmm_scatter_${dataset_name}.png"  
+    tuple val(dataset_name), path("plddt_gmm_scatter_${dataset_name}.png")
 
     script:
     """
@@ -178,7 +180,7 @@ process PLOT_METAPREDICT {
     tuple val(dataset_name), path(csv_file)
 
     output:
-    path "*.png"
+    tuple val(dataset_name), path("*.png")
 
     script:
     """
@@ -233,7 +235,7 @@ process PLOT_PSAURON {
     tuple val(dataset_name), path(psauron_csv)
 
     output:
-    path "*.png"
+    tuple val(dataset_name), path("*.png")
 
     script:
     """
@@ -243,6 +245,31 @@ process PLOT_PSAURON {
     """
 }
 
+process GENERATE_REPORT {
+    tag { dataset_name }
+
+    cpus 1
+    memory '2 GB'
+    time '30m'
+
+    publishDir "results", mode: 'copy'
+
+    input:
+    tuple val(dataset_name), path(all_pngs)
+
+    output:
+    path "${dataset_name}_report.pdf"
+
+    script:
+    """
+    pip install reportlab pillow --quiet
+
+    python ${projectDir}/bin/generate_report.py \
+        ${dataset_name} \
+        ${dataset_name}_report.pdf \
+        ${all_pngs}
+    """
+}
 
 
 workflow {
@@ -268,20 +295,35 @@ workflow {
 
     pkl_ch = PROCESS_MODELS(collected_ch)
 
-    PLOT_PLDDT(pkl_ch)
+    plddt_plot_ch = PLOT_PLDDT(pkl_ch)
 
     // ================= METAPREDICT BRANCH ================= //
 
     metapredict_ch = METAPREDICT_DISORDER(fasta_ch)
 
-    PLOT_METAPREDICT(metapredict_ch)
-
+    metapredict_plot_ch = PLOT_METAPREDICT(metapredict_ch)
 
     // ================= PSAURON BRANCH ================= //
 
     psauron_ch = PSAURON_RUN(fasta_ch)
 
-    PLOT_PSAURON(psauron_ch)
+    psauron_plot_ch = PLOT_PSAURON(psauron_ch)
+
+    // ================= REPORT STAGE ================= //
+    // Collect all PNGs per dataset_name into a single list, then generate report
+
+    report_ch = plddt_plot_ch
+        .join(metapredict_plot_ch, by: 0)
+        .join(psauron_plot_ch, by: 0)
+        .map { dataset_name, plddt_png, metapredict_pngs, psauron_pngs ->
+            // Flatten into a single list regardless of how many PNGs each process emits
+            def pngs = []
+            pngs += (plddt_png instanceof List ? plddt_png : [plddt_png])
+            pngs += (metapredict_pngs instanceof List ? metapredict_pngs : [metapredict_pngs])
+            pngs += (psauron_pngs instanceof List ? psauron_pngs : [psauron_pngs])
+            tuple(dataset_name, pngs)
+        }
+
+    GENERATE_REPORT(report_ch)
 
 }
-
