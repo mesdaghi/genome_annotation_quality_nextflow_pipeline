@@ -188,8 +188,8 @@ All output (plots, PKL files, CSVs) will be stored under `results/`.
 ## Workflow Diagram
 
                           FASTA
-                   /       |        \
-                  /        |         \
+                   /        |            \
+                  /         |             \
              PROTENIX  METAPREDICT      PSAURON
                 |           |              |
              pLDDT PKL     CSV            CSV
@@ -197,7 +197,9 @@ All output (plots, PKL files, CSVs) will be stored under `results/`.
             PLOT_PLDDT  PLOT_METAPREDICT  PLOT_PSAURON
                 |           |              |
                PNG         PNG            PNG
-
+                 \          |              /
+                  \         |             /
+                      FINAL REPORT
 ------------------------------------------------------------------------
 
 ## Requirements
