@@ -72,51 +72,6 @@ def style_highlight():
     return dict(linestyle="-", alpha=1.0, linewidth=2.5)
 
 # =========================================================
-# HISTOGRAM
-# =========================================================
-plt.figure()
-for species, values in species_mean_values.items():
-    if len(values) == 0:
-        continue
-    plt.hist(values, bins=40, histtype="step", density=True, label=species, **style_background())
-
-if highlight_mean_values:
-    plt.hist(highlight_mean_values, bins=40, histtype="step", density=True,
-             label=dataset_label, **style_highlight())
-
-plt.title("Mean Disorder Histogram")
-plt.xlabel("Mean Disorder")
-plt.ylabel("Density")
-plt.legend()
-plt.tight_layout()
-plt.savefig(f"{dataset_label}_mean_disorder_hist.png", dpi=300)
-plt.close()
-
-# =========================================================
-# STATSMODELS KDE
-# =========================================================
-plt.figure()
-for species, values in species_mean_values.items():
-    if len(values) < 2:
-        continue
-    kde = KDEUnivariate(values)
-    kde.fit(bw="scott")
-    plt.plot(kde.support, kde.density, label=species, **style_background())
-
-if highlight_mean_values and len(highlight_mean_values) > 1:
-    kde = KDEUnivariate(highlight_mean_values)
-    kde.fit(bw="scott")
-    plt.plot(kde.support, kde.density, label=dataset_label, **style_highlight())
-
-plt.title("Mean Disorder Density (StatsModels KDE)")
-plt.xlabel("Mean Disorder")
-plt.ylabel("Density")
-plt.legend()
-plt.tight_layout()
-plt.savefig(f"{dataset_label}_mean_disorder_density_statsmodels.png", dpi=300)
-plt.close()
-
-# =========================================================
 # SCIPY KDE
 # =========================================================
 plt.figure()
