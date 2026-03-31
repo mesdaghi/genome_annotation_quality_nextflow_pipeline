@@ -122,7 +122,7 @@ process PLOT_PLDDT {
     tuple val(dataset_name), path(pkl_file)
 
     output:
-    tuple val(dataset_name), path("plddt_gmm_scatter_${dataset_name}.png")
+    tuple val(dataset_name), path("plddt_*_${dataset_name}.png")
 
     script:
     """
