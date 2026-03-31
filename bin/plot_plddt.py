@@ -26,7 +26,7 @@ csv_file = os.path.join(os.path.dirname(__file__), "plddt_model_organisms.csv")
 cache_file = "cached_csv_gmm_metrics_model_organisms.csv"
 
 # Species to exclude from CSV
-species_to_exclude = ["Homo_sapiens_2k", "afdb_Homo_sapiens_2k"]
+species_to_exclude = ["Cauris6684", "Homo_sapiens_2k", "afdb_Homo_sapiens_2k"]
 
 # ---------- LOAD CSV (all species except excluded, HS renamed) ----------
 csv_species_values = {}
