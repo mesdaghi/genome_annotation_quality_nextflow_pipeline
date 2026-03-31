@@ -23,12 +23,13 @@ from PIL import Image as PILImage
 # Map filename fragments to human-readable section headings (order matters —
 # more specific fragments must come before more general ones)
 PLOT_LABELS = [
-    ("plddt (SciPy)",                                "Proteome Structural Confidence Landscape"),
+    ("plddt_density_scipy",                          "pLDDT Distribution (SciPy)"),
+    ("plddt_gmm_scatter",                            "Proteome Structural Confidence Landscape"),
     ("metapredict_mean_disorder_density_scipy",      "Metapredict — Mean Disorder Density (SciPy)"),
     ("metapredict_mean_disorder_density_statsmodels","Metapredict — Mean Disorder Density (Statsmodels)"),
     ("metapredict_mean_disorder_hist",               "Metapredict — Mean Disorder Histogram"),
     ("metapredict",                                  "Metapredict Disorder"),
-    ("psauron",                                      "PSAURON Distribution"),
+    ("psauron",                                      "pSAURON Distribution"),
 ]
 
 
