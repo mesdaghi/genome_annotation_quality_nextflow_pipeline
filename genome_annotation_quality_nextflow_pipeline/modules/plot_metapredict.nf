@@ -16,7 +16,9 @@ process PLOT_METAPREDICT {
     tuple val(dataset_name), path("*.png")
 
     script:
-    """
+    """ 
+    export MPLCONFIGDIR=\$(mktemp -d)
+
     python3 ${projectDir}/bin/plot_metapredict.py ${csv_file}
 
     # Where is the output file going. Need to update this to be more flexible. 

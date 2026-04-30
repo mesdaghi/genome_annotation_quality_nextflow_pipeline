@@ -26,11 +26,11 @@ workflow {
 
     split_ch = SPLIT_JSON(json_ch)
 
-    chunks_ch = split_ch
-        .flatMap { dataset_name, chunks ->
-            chunks.collect { chunk_file -> tuple(dataset_name, chunk_file) }
-        }
+    chunks_ch = split_ch.map { dataset_name, json_file ->
+    tuple(dataset_name, json_file)
+}
 
+    chunks_ch.view(f -> "Dataset: ${f[0]}, Chunk: ${f[1].getName()}")
     pred_ch = PROTENIX_PREDICT(chunks_ch)
 
     collected_ch = COLLECT_CHUNKS(pred_ch)

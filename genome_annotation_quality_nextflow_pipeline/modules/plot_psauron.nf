@@ -5,9 +5,7 @@ nextflow.enable.dsl=2
 
 process PLOT_PSAURON {
     tag { dataset_name }
-
  
-
     publishDir "results/psauron_plots", mode: 'copy' // having dirs of the same name sometimes causes issues with singularity.
 
     input:
@@ -18,8 +16,11 @@ process PLOT_PSAURON {
 
     script:
     """
+    export MPLCONFIGDIR=\$(mktemp -d)
+
+    # This is an issue as the HPC doesn't like linking to files on the home directory. Need to update this to be more flexible.
     python3 ${projectDir}/bin/plot_psauron_distribution.py \
-        ${projectDir}/bin/combined_psauron_results.csv \ # This shoud not be hardcoded...
+        ${projectDir}/reference/combined_psauron_results.csv \
         ${psauron_csv}
     """
 }

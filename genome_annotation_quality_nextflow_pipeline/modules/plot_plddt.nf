@@ -17,6 +17,8 @@ process PLOT_PLDDT {
 
     script:
     """
+    export MPLCONFIGDIR=\$(mktemp -d)
+    
     python3 ${projectDir}/bin/plot_plddt.py ${dataset_name}
     """
 }

@@ -9,7 +9,6 @@ process METAPREDICT_DISORDER {
 
     publishDir "results/metapredict", mode: 'copy'
 
-  
     input:
     tuple path(fasta_file), val(dataset_name)
 

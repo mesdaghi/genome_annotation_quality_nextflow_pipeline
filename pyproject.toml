@@ -19,6 +19,7 @@ dependencies = [
   "pandas",
   "scikit-learn",
   "adjustText",
+  "gemmi",
 ]
 
 [dependency-groups]
