@@ -6,15 +6,10 @@ nextflow.enable.dsl=2
 process METAPREDICT_DISORDER {
     tag { dataset_name }
 
-    cpus 8
-    memory '16 GB'
-    time '2d'
 
     publishDir "results/metapredict", mode: 'copy'
 
-    // GPU request (SLURM-style)
-    clusterOptions '--gres=gpu:1'
-
+  
     input:
     tuple path(fasta_file), val(dataset_name)
 

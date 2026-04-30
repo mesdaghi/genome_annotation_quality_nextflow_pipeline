@@ -6,9 +6,7 @@ nextflow.enable.dsl=2
 process PROCESS_MODELS {
     tag { dataset_name }
 
-    cpus 4
-    memory '8 GB'
-    time '4h'
+    
 
     input:
     tuple val(dataset_name), path(pred_dir)

@@ -4,9 +4,7 @@ nextflow.enable.dsl=2
 
 
 process SPLIT_JSON {
-    cpus 1
-    memory '2 GB'
-    time '1h'
+
     tag { dataset_name }
 
     input:

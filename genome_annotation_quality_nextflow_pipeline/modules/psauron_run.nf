@@ -6,10 +6,7 @@ nextflow.enable.dsl=2
 process PSAURON_RUN {
     tag { dataset_name }
 
-    cpus 8
-    memory '16 GB'
-    time '2d'
-
+   
     publishDir "results/psauron", mode: 'copy'
     clusterOptions '--gres=gpu:1'
 

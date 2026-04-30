@@ -6,10 +6,7 @@ nextflow.enable.dsl=2
 process PROTENIX_PREDICT {
     tag { "${dataset_name}_${chunk_file.simpleName}" }
 
-    cpus 8
-    memory '16 GB'
-    time '2d'
-    clusterOptions '--gres=gpu:1'
+
 
     input:
     tuple val(dataset_name), path(chunk_file)

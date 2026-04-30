@@ -6,9 +6,7 @@ nextflow.enable.dsl=2
 process PLOT_PLDDT {
     tag { dataset_name }
 
-    cpus 2
-    memory '4 GB'
-    time '2h'
+
     publishDir "results/plots", mode: 'copy'
 
     input:
