@@ -8,7 +8,7 @@ process PLOT_PSAURON {
 
  
 
-    publishDir "results/psauron_plots", mode: 'copy'
+    publishDir "results/psauron_plots", mode: 'copy' // having dirs of the same name sometimes causes issues with singularity.
 
     input:
     tuple val(dataset_name), path(psauron_csv)
@@ -18,7 +18,7 @@ process PLOT_PSAURON {
 
     script:
     """
-    python ${projectDir}/bin/plot_psauron_distribution.py \
+    python3 ${projectDir}/bin/plot_psauron_distribution.py \
         ${projectDir}/bin/combined_psauron_results.csv \ # This shoud not be hardcoded...
         ${psauron_csv}
     """

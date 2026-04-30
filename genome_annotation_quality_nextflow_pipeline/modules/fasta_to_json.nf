@@ -15,6 +15,6 @@ process FASTA_TO_JSON {
 
     script:
     """
-    python ${projectDir}/bin/fasta_to_protenix_json_all.py ${fasta_file} out.json
+    python3 ${projectDir}/bin/fasta_to_protenix_json_all.py ${fasta_file} out.json
     """
 }

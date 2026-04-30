@@ -6,8 +6,7 @@ nextflow.enable.dsl=2
 process PROCESS_MODELS {
     tag { dataset_name }
 
-    
-
+  
     input:
     tuple val(dataset_name), path(pred_dir)
 
@@ -16,7 +15,7 @@ process PROCESS_MODELS {
 
     script:
     """
-    python ${projectDir}/bin/process_models.py \
+    python3 ${projectDir}/bin/process_models.py \
       ${pred_dir} \
       plddt_all_values_${dataset_name}_all_one.pkl
     """

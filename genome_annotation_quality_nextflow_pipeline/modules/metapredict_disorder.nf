@@ -22,9 +22,9 @@ process METAPREDICT_DISORDER {
     echo "Running on: \$(hostname)"
     echo "Start time: \$(date)"
 
-    module load cuda/13.0.2
-    source ~/miniconda3/etc/profile.d/conda.sh
-    conda activate metapredict
+    # module load cuda/13.0.2
+    # source ~/miniconda3/etc/profile.d/conda.sh
+    # conda activate metapredict
 
     nvidia-smi
 

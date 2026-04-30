@@ -6,10 +6,6 @@ nextflow.enable.dsl=2
 process GENERATE_REPORT {
     tag { dataset_name }
 
-    cpus 1
-    memory '2 GB'
-    time '30m'
-
     publishDir "results", mode: 'copy'
 
     input:
@@ -20,9 +16,8 @@ process GENERATE_REPORT {
 
     script:
     """
-    
 
-    python ${projectDir}/bin/generate_report.py \
+    python3 ${projectDir}/bin/generate_report.py \
         ${dataset_name} \
         ${dataset_name}_report.pdf \
         ${all_pngs}

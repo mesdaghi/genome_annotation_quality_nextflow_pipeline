@@ -5,10 +5,8 @@ nextflow.enable.dsl=2
 
 process PSAURON_RUN {
     tag { dataset_name }
-
    
     publishDir "results/psauron", mode: 'copy'
-    clusterOptions '--gres=gpu:1'
 
     input:
     tuple path(fasta_file), val(dataset_name)
@@ -21,7 +19,7 @@ process PSAURON_RUN {
     echo "Running on: \$(hostname)"
     echo "Start time: \$(date)"
 
-    module load cuda/13.0.2
+    # module load cuda/13.0.2
 
     nvidia-smi
 

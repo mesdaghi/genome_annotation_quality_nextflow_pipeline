@@ -7,7 +7,7 @@ process PLOT_PLDDT {
     tag { dataset_name }
 
 
-    publishDir "results/plots", mode: 'copy'
+    publishDir "results/plots", mode: 'copy' // having dirs of the same name sometimes causes issues with singularity.
 
     input:
     tuple val(dataset_name), path(pkl_file)
@@ -17,6 +17,6 @@ process PLOT_PLDDT {
 
     script:
     """
-    python ${projectDir}/bin/plot_plddt.py ${dataset_name}
+    python3 ${projectDir}/bin/plot_plddt.py ${dataset_name}
     """
 }

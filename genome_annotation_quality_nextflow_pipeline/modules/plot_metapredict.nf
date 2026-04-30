@@ -17,8 +17,8 @@ process PLOT_METAPREDICT {
 
     script:
     """
-    python ${projectDir}/bin/plot_metapredict.py ${csv_file}
+    python3 ${projectDir}/bin/plot_metapredict.py ${csv_file}
 
-    # Where is the output file goign.
+    # Where is the output file going. Need to update this to be more flexible. 
     """
 }

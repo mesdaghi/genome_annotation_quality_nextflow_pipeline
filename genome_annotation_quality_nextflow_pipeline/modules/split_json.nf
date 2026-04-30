@@ -16,6 +16,6 @@ process SPLIT_JSON {
     script:
     """
     mkdir -p json_chunks
-    python ${projectDir}/bin/split_json.py ${json_file} ${params.chunk_size} json_chunks
+    python3 ${projectDir}/bin/split_json.py ${json_file} ${params.chunk_size} json_chunks
     """
 }
