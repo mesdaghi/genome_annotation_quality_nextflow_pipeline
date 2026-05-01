@@ -53,7 +53,7 @@ omit = [
   "noxfile.py",
   # add other files or directories to omit from coverage here
 ]
-
+  
 [tool.mypy]
 check_untyped_defs = true
 disallow_incomplete_defs = true
@@ -81,4 +81,6 @@ exclude = [
 
 [tool.setuptools.packages.find]
 include = ["genome_annotation_quality_nextflow_pipeline*"]
-exclude = ["works/*"]
+
+exclude = ["work*", "results*", ".nextflow*", "data*", "works/*"]
+
