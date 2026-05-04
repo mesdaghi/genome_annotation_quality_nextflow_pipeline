@@ -30,6 +30,8 @@ PLOT_LABELS = [
     ("metapredict_mean_disorder_hist",               "Metapredict — Mean Disorder Histogram"),
     ("metapredict",                                  "Metapredict Disorder"),
     ("psauron",                                      "pSAURON Distribution"),
+    ("interpro_merged_coverage_distribution",        "InterPro Domain Coverage — Per-Protein Distribution"),
+    ("interpro_domain_coverage",                     "InterPro Domain Coverage — Per-Library"),
 ]
 
 
@@ -119,3 +121,4 @@ if __name__ == "__main__":
     output_pdf   = sys.argv[2]
     png_files    = sys.argv[3:]
     build_report(dataset_name, output_pdf, png_files)
+
