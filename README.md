@@ -1,9 +1,8 @@
-
 # genome_annotation_quality_nextflow_pipeline
 
 Nextflow pipeline for large-scale protein structure prediction,
 intrinsic disorder analysis, and genome annotation quality assessment
-using **Protenix**, **Metapredict**, and **PSAURON**.
+using **Protenix**, **Metapredict**, **PSAURON**, and **Interproscan**.
 
 ------------------------------------------------------------------------
 
@@ -14,6 +13,7 @@ This repository contains a **Nextflow DSL2 pipeline** for:
 - Large-scale protein structure prediction using Protenix
 - Intrinsic disorder prediction using Metapredict
 - Protein-coding sequence quality assessment using PSAURON
+- Functional domain annotation and coverage profiling using InterProScan
 - Automated chunking and HPC parallelisation
 - Model processing and metric extraction
 - Comparative plotting against reference proteome datasets
@@ -47,6 +47,37 @@ PSAURON scores enable:
 
 This pipeline integrates PSAURON scoring directly into structure and
 disorder prediction workflows for multi-metric genome annotation QC.
+
+## InterProScan Overview
+
+Functional annotation of protein sequences is a cornerstone of genome
+quality assessment. InterProScan integrates fifteen member databases —
+including PFAM, PANTHER, GENE3D, SUPERFAMILY, FUNFAM, CDD, SMART, PRINTS,
+HAMAP, PIRSF, PIRSR, SFLD, NCBIFAM, PROSITE_PROFILES and PROSITE_PATTERNS —
+to assign protein family, domain, and functional site signatures, mapping
+them where possible to the unified InterPro classification.
+
+In this pipeline, InterProScan is used to compute two complementary
+genome-quality metrics:
+
+- **Per-library coverage**: the percentage of input proteins matched by
+  each signature library, plus an overall "any IPR hit" total. This
+  reveals which evidence sources are dominant for a given proteome and
+  flags annotation gaps relative to reference organisms.
+- **Per-protein domain coverage**: for every protein, the fraction of
+  residues covered by the union of its IPR-bearing matches (overlapping
+  hits merged so residues are not double-counted), giving a length-
+  normalised score between 0 and 1. The distribution of this score
+  across the proteome is a sensitive indicator of annotation quality —
+  proteomes with many short, fragmented, or spurious annotations
+  typically show a heavy excess of low-coverage proteins relative to
+  well-annotated reference organisms.
+
+The InterProScan branch is **optional** and is enabled with
+`--run_interpro true`. Because InterProScan is computationally expensive,
+the pipeline parallelises it by chunking the input FASTA, running each
+chunk independently, and concatenating the per-chunk XML/TSV outputs
+before plotting.
 
 
 
@@ -113,6 +144,26 @@ conda create -n psauron python=3.10
 conda activate psauron
 pip install psauron
 ```
+
+#### d. InterProScan (optional branch)
+
+InterProScan is invoked as an external command-line tool. Install it
+following the official Java-based release from
+[https://www.ebi.ac.uk/interpro/interproscan.html](https://www.ebi.ac.uk/interpro/interproscan.html),
+or load it via your HPC module system if available:
+
+```bash
+module load interproscan
+interproscan.sh --version
+```
+
+The `INTERPROSCAN` process expects `interproscan.sh` to be on `$PATH` on
+the compute nodes. Make sure the data directory is unpacked before the
+first run, as InterProScan downloads several GB of signature databases
+during initial setup. No additional Python environment is required for
+the InterPro plotting step — `bin/plot_interpro.py` only needs `numpy`
+and `matplotlib`, which are typically available in the base
+`metapredict` or `psauron` environments.
 
 ---
 
@@ -183,23 +234,36 @@ All output (plots, PKL files, CSVs) will be stored under `results/`.
 - Histogram and KDE density plots
 - Automated integration into Nextflow workflow
 
+### Functional Domain Annotation (InterProScan)
+
+- Optional, FASTA-driven InterProScan branch (`--run_interpro true`)
+- Automatic chunking and parallel execution across HPC compute nodes
+- Concatenation of per-chunk XML/TSV outputs into a single result
+- Per-library coverage bar chart with the query highlighted alongside
+  five reference model organisms
+- Per-protein merged-domain coverage violin/box plot showing the
+  distribution of residue-level IPR coverage across the proteome
+- Tab-separated summary table of per-species coverage metrics
+- Acceptance of a precomputed XML via `--run_interpro /path/to/xml`,
+  skipping the (expensive) InterProScan step
+
 ------------------------------------------------------------------------
 
 ## Workflow Diagram
 
-                          FASTA
-                   /        |            \
-                  /         |             \
-             PROTENIX  METAPREDICT      PSAURON
-                |           |              |
-             pLDDT PKL     CSV            CSV
-                |           |              |
-            PLOT_PLDDT  PLOT_METAPREDICT  PLOT_PSAURON
-                |           |              |
-               PNG         PNG            PNG
-                 \          |              /
-                  \         |             /
-                      FINAL REPORT
+                              FASTA
+                /        |          |          \
+               /         |          |           \
+          PROTENIX  METAPREDICT  PSAURON  INTERPROSCAN (optional)
+              |          |          |           |
+           pLDDT PKL    CSV        CSV       XML / TSV
+              |          |          |           |
+          PLOT_PLDDT  PLOT_META  PLOT_PSAURON  PLOT_INTERPRO
+              |          |          |           |
+             PNG        PNG        PNG     PNG ×2 + TSV
+                \        |          |           /
+                 \       |          |          /
+                            FINAL REPORT
 ------------------------------------------------------------------------
 
 ## Requirements
@@ -223,10 +287,35 @@ nextflow run main.nf -profile slurm --fasta after_461.fasta --chunk_size 100
 
 ### Parameters
 
-| Parameter     | Description                                |
-|--------------|--------------------------------------------|
-| --chunk_size | Number of sequences per Protenix chunk     |
-| --fasta      | Path to input FASTA file                   |
+| Parameter              | Description                                                                       |
+|------------------------|-----------------------------------------------------------------------------------|
+| --chunk_size           | Number of sequences per Protenix chunk                                            |
+| --fasta                | Path to input FASTA file                                                          |
+| --run_interpro         | Enable InterPro branch. `true` = run InterProScan; `/path/to/x.xml` = plot only   |
+| --ipr_reference_json   | Path to reference model-organism JSON (default: `bin/ipr_coverage.json`)          |
+
+### Running with the InterProScan branch
+
+The InterProScan branch is opt-in. By default it is disabled.
+
+```bash
+# Full branch — runs InterProScan from scratch on the input FASTA
+nextflow run main.nf -profile slurm \
+    --fasta after_461.fasta \
+    --run_interpro true
+
+# Plot-only — skip the (expensive) InterProScan step and reuse a
+# previously generated XML, paired with the dataset's FASTA
+nextflow run main.nf -profile slurm \
+    --fasta after_461.fasta \
+    --run_interpro /path/to/precomputed_interproscan_output.xml
+
+# Override the reference model-organism dataset
+nextflow run main.nf -profile slurm \
+    --fasta after_461.fasta \
+    --run_interpro true \
+    --ipr_reference_json /path/to/custom_ipr_coverage.json
+```
 
 ------------------------------------------------------------------------
 
@@ -243,10 +332,15 @@ nextflow run main.nf -profile slurm --fasta after_461.fasta --chunk_size 100
      │    ├── <dataset>_mean_disorder_density_statsmodels.png
      │    └── <dataset>_mean_disorder_density_scipy.png
      │
-     └── psauron_plots/
-          ├── psauron_hist.png
-          ├── psauron_density_statsmodels.png
-          └── psauron_density_scipy.png
+     ├── psauron_plots/
+     │    ├── psauron_hist.png
+     │    ├── psauron_density_statsmodels.png
+     │    └── psauron_density_scipy.png
+     │
+     └── interpro_plots/                       (only if --run_interpro)
+          ├── interpro_domain_coverage.png
+          ├── interpro_merged_coverage_distribution.png
+          └── interpro_summary.tsv
 
 Intermediate outputs:
 
@@ -255,6 +349,7 @@ Intermediate outputs:
 - plddt_all_values_<dataset>_all_one.pkl
 - <dataset>_metapredict.csv
 - <dataset>_psauron.csv
+- <dataset>_interproscan.xml / <dataset>_interproscan.tsv     (interpro branch)
 
 ------------------------------------------------------------------------
 ## Example Output Images
@@ -294,6 +389,48 @@ To ensure consistent and comparable fits across species, the GMM for each specie
 
 ![PSAURON Example](psauron_categorical_distribution_new.png)
 
+### InterPro Per-Library Coverage Example
+
+This plot shows the percentage of input proteins matched by each
+InterProScan signature library, with the query species highlighted on the
+right. The final dark "Total (any IPR hit)" bar gives the headline
+overall coverage figure (e.g. 58.4% for *Arabidopsis thaliana*).
+
+![InterPro Per-Library Coverage Example](interpro_domain_coverage.png)
+
+#### How to interpret
+- **Per-library bars** show what fraction of the proteome is matched by
+  each library individually. A protein hit by both PFAM and PANTHER will
+  contribute to both bars — these are not stacked, so summing across
+  libraries does not give the total.
+- **Total bar** shows the percentage of proteins with at least one hit
+  from any IPR-bearing library — the canonical "InterPro coverage" figure.
+- **Library order** is determined by aggregate hit count across all
+  species in the reference set, so the most informative libraries
+  appear leftmost.
+
+### InterPro Per-Protein Coverage Distribution Example
+
+This plot shows the distribution of length-normalised IPR coverage
+across every protein in each proteome. For each protein, all IPR-bearing
+hits are merged (overlapping intervals counted once) and the covered
+residues divided by the protein length to give a score between 0 and 1.
+
+![InterPro Per-Protein Coverage Distribution Example](interpro_merged_coverage_distribution.png)
+
+#### How to interpret
+- **Violin shape** shows the density of coverage values at each level.
+  Most well-annotated proteomes are bimodal: a peak at 0 (proteins with
+  no IPR hit) and a peak near 1 (single-domain proteins fully covered
+  by their domain).
+- **Box overlay** shows the IQR and median (white line); the white
+  diamond marks the mean.
+- **Stats line** below the plot reports n, mean, median, and the count
+  of zero-coverage proteins per species — the latter is often the most
+  diagnostic single number for annotation quality.
+- **Query species** appears at the right with a red border and is
+  separated from the reference set by a dashed grey line.
+
 ------------------------------------------------------------------------
 ## Reference Datasets
 ### Protein Model Reference  
@@ -308,6 +445,20 @@ To ensure consistent and comparable fits across species, the GMM for each specie
 
 Precomputed multi-species PSAURON score distribution used as background
 for comparative overlay plots.
+
+### InterPro Reference
+
+    bin/ipr_coverage.json
+
+Precomputed InterProScan coverage data for five reference model
+organisms — *Arabidopsis thaliana*, *Drosophila melanogaster*,
+*Homo sapiens*, *Mus musculus*, and *Saccharomyces cerevisiae* —
+including per-library hit counts, overall coverage percentages, and
+per-protein merged-domain coverage vectors. Used by `bin/plot_interpro.py`
+to overlay the query proteome against well-characterised references.
+
+To regenerate or extend this dataset, run the standalone reporter script
+described in `bin/ipr_coverage.README.md`.
 
 ------------------------------------------------------------------------
 
@@ -325,6 +476,10 @@ for comparative overlay plots.
 | PLOT_METAPREDICT      | Generates disorder comparison plots         |
 | PSAURON_RUN           | Runs PSAURON scoring (GPU)                  |
 | PLOT_PSAURON          | Generates PSAURON overlay distribution plots|
+| CHUNK_IPR             | Splits FASTA into InterProScan chunks       |
+| INTERPROSCAN          | Runs InterProScan on each chunk             |
+| CONCAT_IPR            | Merges per-chunk XML/TSV results            |
+| PLOT_INTERPRO         | Generates InterPro coverage comparison plots|
 
 ------------------------------------------------------------------------
 
