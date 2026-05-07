@@ -19,6 +19,7 @@ process PROTENIX_PREDICT {
     # source ~/miniconda3/etc/profile.d/conda.sh
     # conda activate protenix_env
     export PROTENIX_CACHE=${params.protenix_cache}
+    export PROTENIX_ROOT_DIR=${params.protenix_cache}
     export MPLCONFIGDIR=\$(mktemp -d)
     export TORCH_EXTENSIONS_DIR=\$PWD/torch_extensions
     export XDG_CACHE_HOME=\$PWD/.cache
@@ -33,6 +34,7 @@ process PROTENIX_PREDICT {
 
     mkdir -p protenix_out/${dataset_name}
     
+    echo \$PROTENIX_ROOT_DIR
    
     python /app/runner/batch_inference.py \
         --input ${chunk_file} \
