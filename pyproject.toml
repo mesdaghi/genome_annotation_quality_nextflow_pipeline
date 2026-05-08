@@ -20,6 +20,7 @@ dependencies = [
   "scikit-learn",
   "adjustText",
   "gemmi",
+  "lxml",
 ]
 
 [dependency-groups]
