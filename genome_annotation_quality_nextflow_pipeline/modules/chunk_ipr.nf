@@ -1,10 +1,11 @@
+#!/usr/bin/env nextflow
+
+nextflow.enable.dsl=2
+
 process CHUNK_IPR {
     tag { dataset_name }
 
-    cpus 1
-    memory '2 GB'
-    time '1h'
-
+ 
     input:
     tuple path(fasta_file), val(dataset_name)
 

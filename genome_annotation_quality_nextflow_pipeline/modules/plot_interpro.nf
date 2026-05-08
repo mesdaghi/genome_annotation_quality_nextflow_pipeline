@@ -1,9 +1,11 @@
+#!/usr/bin/env nextflow
+
+nextflow.enable.dsl=2
+
 process PLOT_INTERPRO {
     tag { dataset_name }
 
-    cpus 2
-    memory '4 GB'
-    time '2h'
+  
 
     publishDir "results/interpro_plots", mode: 'copy'
 
@@ -18,7 +20,7 @@ process PLOT_INTERPRO {
 
     script:
     """
-    python ${projectDir}/bin/plot_interpro.py \
+    python3 ${projectDir}/bin/plot_interpro.py \
         ${fasta_file} \
         ${xml_file} \
         --json ${params.ipr_reference_json} \

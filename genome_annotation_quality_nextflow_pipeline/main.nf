@@ -76,8 +76,10 @@ workflow {
 
         // Full branch
         ipr_chunks_ch = CHUNK_IPR(fasta_ch)
-            .flatMap { dataset_name, chunks ->
-                chunks.collect { chunk_file -> tuple(dataset_name, chunk_file) }
+            .map { dataset_name, chunks ->
+                // chunks is a list of files from ipr_chunks/*.fasta
+                // Keep dataset_name paired with all chunks
+                tuple(dataset_name, chunks)
             }
 
         ipr_results_ch = INTERPROSCAN(ipr_chunks_ch)

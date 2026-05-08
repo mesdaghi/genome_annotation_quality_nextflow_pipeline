@@ -1,9 +1,9 @@
+#!/usr/bin/env nextflow
+
+nextflow.enable.dsl=2
+
 process INTERPROSCAN {
     tag { "${dataset_name}_${chunk_file.simpleName}" }
-
-    cpus 16
-    memory '64 GB'
-    time '24h'
 
     input:
     tuple val(dataset_name), path(chunk_file)
@@ -16,7 +16,7 @@ process INTERPROSCAN {
     # module purge
     # module load adoptopenjdk/11.0.12+7
     # module load interproscan/5.66-98.0
-
+    
     /opt/interproscan/interproscan.sh \
         -i ${chunk_file} \
         -f TSV,XML \
