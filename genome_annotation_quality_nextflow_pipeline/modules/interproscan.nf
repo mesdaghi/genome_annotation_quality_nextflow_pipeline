@@ -23,7 +23,7 @@ process INTERPROSCAN {
 
 
     /opt/interproscan/interproscan.sh \
-        -i ${chunk_file} 
+        -i ${chunk_file} \
         -f TSV,XML \
         --cpu ${task.cpus} \
         --tempdir \$TMPDIR 
