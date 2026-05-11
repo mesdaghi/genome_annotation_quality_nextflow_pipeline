@@ -1,6 +1,7 @@
 process CONCAT_IPR {
     tag { dataset_name }
 
+    label 'cpu'
 
     publishDir "results/interpro", mode: 'copy'
 

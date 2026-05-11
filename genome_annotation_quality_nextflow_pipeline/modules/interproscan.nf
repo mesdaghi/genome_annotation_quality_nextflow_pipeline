@@ -5,6 +5,8 @@ nextflow.enable.dsl=2
 process INTERPROSCAN {
     tag { "${dataset_name}_${chunk_file.simpleName}" }
 
+    label 'cpu'
+
     input:
     tuple val(dataset_name), path(chunk_file)
 
@@ -21,7 +23,7 @@ process INTERPROSCAN {
 
 
     /opt/interproscan/interproscan.sh \
-        -i ${chunk_file} \
+        -i ${chunk_file} 
         -f TSV,XML \
         --cpu ${task.cpus} \
         --tempdir \$TMPDIR 

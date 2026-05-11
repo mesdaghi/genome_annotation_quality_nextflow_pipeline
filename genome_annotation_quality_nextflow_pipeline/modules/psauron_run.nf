@@ -5,6 +5,8 @@ nextflow.enable.dsl=2
 
 process PSAURON_RUN {
     tag { dataset_name }
+
+    label 'gpu'
    
     publishDir "results/psauron", mode: 'copy'
 

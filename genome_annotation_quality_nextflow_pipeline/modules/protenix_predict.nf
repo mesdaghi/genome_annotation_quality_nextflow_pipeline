@@ -6,6 +6,8 @@ nextflow.enable.dsl=2
 process PROTENIX_PREDICT {
     tag { "${dataset_name}_${chunk_file.simpleName}" }
 
+    label 'gpu'
+
     input:
     tuple val(dataset_name), path(chunk_file)
 

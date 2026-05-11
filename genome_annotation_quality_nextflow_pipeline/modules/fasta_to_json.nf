@@ -7,6 +7,8 @@ process FASTA_TO_JSON {
     
     tag { dataset_name }
 
+    label 'cpu'
+
     input:
     tuple path(fasta_file), val(dataset_name)
 

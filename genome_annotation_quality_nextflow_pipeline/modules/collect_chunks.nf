@@ -6,6 +6,8 @@ nextflow.enable.dsl=2
 process COLLECT_CHUNKS {
     tag { dataset_name }
 
+    label 'cpu'
+   
     input:
     tuple val(dataset_name), path(pred_dir)
 

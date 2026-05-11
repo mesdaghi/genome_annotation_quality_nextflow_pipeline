@@ -5,7 +5,9 @@ nextflow.enable.dsl=2
 
 process PLOT_PSAURON {
     tag { dataset_name }
- 
+    
+    label 'cpu'
+
     publishDir "results/psauron_plots", mode: 'copy' // having dirs of the same name sometimes causes issues with singularity.
 
     input:

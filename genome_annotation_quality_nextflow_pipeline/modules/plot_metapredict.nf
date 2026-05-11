@@ -6,6 +6,7 @@ nextflow.enable.dsl=2
 process PLOT_METAPREDICT {
     tag { dataset_name }
 
+    label 'cpu'
 
     publishDir "results/metapredict_plots", mode: 'copy'
 

@@ -6,6 +6,8 @@ nextflow.enable.dsl=2
 process GENERATE_REPORT {
     tag { dataset_name }
 
+    label 'cpu'
+    
     publishDir "results", mode: 'copy'
 
     input:

@@ -4,8 +4,9 @@ nextflow.enable.dsl=2
 
 
 process SPLIT_JSON {
-
     tag { dataset_name }
+
+    label 'cpu'
 
     input:
     tuple path(json_file), val(dataset_name)

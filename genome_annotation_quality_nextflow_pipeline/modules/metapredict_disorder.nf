@@ -6,6 +6,7 @@ nextflow.enable.dsl=2
 process METAPREDICT_DISORDER {
     tag { dataset_name }
 
+    label 'gpu'
 
     publishDir "results/metapredict", mode: 'copy'
 

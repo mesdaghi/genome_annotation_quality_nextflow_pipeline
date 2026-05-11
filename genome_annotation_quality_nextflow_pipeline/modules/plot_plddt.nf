@@ -6,6 +6,7 @@ nextflow.enable.dsl=2
 process PLOT_PLDDT {
     tag { dataset_name }
 
+    label 'cpu'
 
     publishDir "results/plots", mode: 'copy' // having dirs of the same name sometimes causes issues with singularity.
 

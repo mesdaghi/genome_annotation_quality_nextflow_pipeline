@@ -5,6 +5,8 @@ nextflow.enable.dsl=2
 process CHUNK_IPR {
     tag { dataset_name }
 
+    label 'cpu'
+   
  
     input:
     tuple path(fasta_file), val(dataset_name)

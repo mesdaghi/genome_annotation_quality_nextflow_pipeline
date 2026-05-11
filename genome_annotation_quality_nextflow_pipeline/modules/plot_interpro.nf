@@ -5,7 +5,7 @@ nextflow.enable.dsl=2
 process PLOT_INTERPRO {
     tag { dataset_name }
 
-  
+    label 'cpu'
 
     publishDir "results/interpro_plots", mode: 'copy'
 
