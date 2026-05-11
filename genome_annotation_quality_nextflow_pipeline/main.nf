@@ -30,10 +30,9 @@ workflow {
     json_ch = FASTA_TO_JSON(fasta_ch)
 
     split_ch = SPLIT_JSON(json_ch)
+    chunks_ch = split_ch.transpose()
 
-    chunks_ch = split_ch.map { dataset_name, json_file ->
-    tuple(dataset_name, json_file)
-}
+
     pred_ch = PROTENIX_PREDICT(chunks_ch)
 
     collected_ch = COLLECT_CHUNKS(pred_ch)
@@ -75,12 +74,7 @@ workflow {
     } else if ( params.run_interpro == true ) {
 
         // Full branch
-        ipr_chunks_ch = CHUNK_IPR(fasta_ch)
-            .map { dataset_name, chunks ->
-                // chunks is a list of files from ipr_chunks/*.fasta
-                // Keep dataset_name paired with all chunks
-                tuple(dataset_name, chunks)
-            }
+        ipr_chunks_ch = CHUNK_IPR(fasta_ch).transpose()
 
         ipr_results_ch = INTERPROSCAN(ipr_chunks_ch)
 
