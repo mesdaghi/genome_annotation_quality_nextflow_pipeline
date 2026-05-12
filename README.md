@@ -396,7 +396,7 @@ InterProScan signature library, with the query species highlighted on the
 right. The final dark "Total (any IPR hit)" bar gives the headline
 overall coverage figure (e.g. 58.4% for *Arabidopsis thaliana*).
 
-![InterPro Per-Library Coverage Example](interpro_domain_coverage.png)
+![InterPro Per-Library Coverage Example](query_ipr_coverage.png)
 
 #### How to interpret
 - **Per-library bars** show what fraction of the proteome is matched by
@@ -416,7 +416,7 @@ across every protein in each proteome. For each protein, all IPR-bearing
 hits are merged (overlapping intervals counted once) and the covered
 residues divided by the protein length to give a score between 0 and 1.
 
-![InterPro Per-Protein Coverage Distribution Example](interpro_merged_coverage_distribution.png)
+![InterPro Per-Protein Coverage Distribution Example](query_ipr_longest_domain_coverage_distribution.png)
 
 #### How to interpret
 - **Violin shape** shows the density of coverage values at each level.
