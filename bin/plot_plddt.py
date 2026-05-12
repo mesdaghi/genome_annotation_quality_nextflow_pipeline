@@ -26,7 +26,7 @@ csv_file = os.path.join(os.path.dirname(__file__), "plddt_model_organisms.csv")
 cache_file = "cached_csv_gmm_metrics_model_organisms.csv"
 
 # Species to exclude from CSV
-species_to_exclude = ["Cauris6684", "Homo_sapiens_2k", "afdb_Homo_sapiens_2k"]
+species_to_exclude = ["Cauris6684", "Homo_sapiens_2k", "afdb_Homo_sapiens_2k","CaurisB8441", "Pan_troglodytes","Rattus_norvegicus" ]
 
 # ---------- LOAD CSV (all species except excluded, HS renamed) ----------
 csv_species_values = {}
@@ -74,9 +74,8 @@ for species, protein_dict in species_plddt.items():
 reference_species = [
     "Drosophila_melanogaster",
     "Homo_sapiens",
-    "Rattus_norvegicus",
+    "Saccharomyces_cerevisiae",
     "Mus_musculus",
-    "Pan_troglodytes",
     "Arabidopsis_thaliana"
 ]
 
