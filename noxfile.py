@@ -1,3 +1,4 @@
+import argparse
 import os
 from pathlib import Path
 
@@ -30,7 +31,7 @@ PYTHON_VERSION = get_python_version()
 PACKAGE_NAME = get_package_name()
 PACKAGE_DIR_PATH = Path(PACKAGE_NAME).resolve()
 SINGULARITY_DIR: Path | None = None
-FOLDSEEK_DB_DIR: Path | None = None
+INTERPRO_VERSION = "5.77-108.0"
 
 nox.options.reuse_existing_virtualenvs = True
 nox.options.default_venv_backend = "uv"
@@ -180,79 +181,7 @@ def nextflow_check(session):
         "-sort-declarations",
         "-harshil-alignment",
         external=True,
-    )
-
-
-@nox.session(python=PYTHON_VERSION)
-def nextflow_tests(session):
-    """
-    Run Nextflow tests using the built in Nextflow testing framework.
-    """
-    # create temproary symlinks from tests/nextflow/test_file...nf to FoldSeekStrucAnnoFlow/ so that the nextflow tests can find the modules and processes in the main repo.
-    test_files = list(Path("tests/nextflow").rglob("*.nf"))
-    for test_file in test_files:
-        symlink_path = PACKAGE_DIR_PATH.joinpath(test_file.name)
-
-        try:
-            if symlink_path.exists():
-                if symlink_path.is_symlink():
-                    symlink_path.unlink()
-                else:
-                    raise FileExistsError(
-                        f"{symlink_path} already exists and is not a symlink. Please remove it before running nextflow tests."
-                    )
-            symlink_path.symlink_to(test_file.resolve())
-            if test_file.name == "test_ted_segmentation.nf":
-                with tempfile.TemporaryDirectory() as temp_dir:
-                    session.run(
-                        "nextflow",
-                        "run",
-                        str(symlink_path),
-                        "--pdb_zip_file",
-                        str(PACKAGE_DIR_PATH.joinpath("..", "tests", "data", "test.zip")),
-                        "--heavy_chunk_size",
-                        "1",
-                        "--light_chunk_size",
-                        "1",
-                        "-profile",
-                        "singularity_local",
-                        "--singularity_images_dir",
-                        str(SINGULARITY_DIR),
-                        "--foldseek_databases_dir",
-                        str(FOLDSEEK_DB_DIR),
-                        "--results_dir",
-                        str(Path(temp_dir).joinpath("results")),
-                        "-c",
-                        str(PACKAGE_DIR_PATH.joinpath("nextflow.config")),
-                        external=True,
-                    )
-            elif test_file.name == "test_UNK_removal.nf":
-                with tempfile.TemporaryDirectory() as temp_dir:
-                    session.run(
-                        "nextflow",
-                        "run",
-                        str(symlink_path),
-                        "--pdb_zip_file",
-                        str(PACKAGE_DIR_PATH.joinpath("..", "tests", "data", "UNK.zip")),
-                        "--results_dir",
-                        str(Path(temp_dir).joinpath("results")),
-                        "-c",
-                        str(PACKAGE_DIR_PATH.joinpath("nextflow.config")),
-                        "-profile",
-                        "singularity_local",
-                        "--singularity_images_dir",
-                        str(SINGULARITY_DIR),
-                        "--foldseek_databases_dir",
-                        str(FOLDSEEK_DB_DIR),
-                        external=True,
-                    )
-            else:
-                pass
-
-        finally:
-            if symlink_path.is_symlink():
-                symlink_path.unlink()
-
+    )  
 
 #
 # Testing
@@ -335,42 +264,118 @@ def pytest_loud(session):
 #
 
 
-# Maybe just use this to build the python one
-@nox.session(python=PYTHON_VERSION)
-def build_singularity(session):
-    """
-    Build the Singularity containers for this project.
-    """
-    uv(session, "sync", "--group", "dev")
-    session.install("pip==24.0", "pip-tools==7.5.2")
-    session.run("pip", "--version")
-    session.run("pip-compile", "--version")
+def parse_args(session: nox.Session) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Build Docker and Apptainer containers")
+    parser.add_argument(
+        "--output",
+        help=f"Directory to save .sif files", required=True, type=Path
+    )
+    return parser.parse_args(session.posargs)
+ 
 
-    # existing commands below…
-    # use uv to turn pyproject.toml into requirements.txt
-    session.run("pip-compile", "--output-file", "requirements.txt", "pyproject.toml")
-    args = list(session.posargs)
-    if args:
-        singularity_images_dir = Path(args[0]).resolve()
-    else:
-        raise ValueError("Please provide a directory to save the Singularity images. Usage: nox -s build_singularity -- /path/to/singularity_images")
-    print("Singularity_dir:", singularity_images_dir)
-    singularity_container_dir = Path("containers").resolve()
+@nox.session(name="build_apptainer", python=False)
+def build_apptainer(session: nox.Session) -> None:
+    """Build all Docker containers locally and convert to Apptainer .sif files.
 
-    for definition_file in singularity_container_dir.rglob("*.def"):
-        print(f"Building Singularity image for {definition_file.name}...")
+    Usage:
+        nox -s build_apptainer -- --output /path/to/dir
+    """
+    args = parse_args(session)
+    sif_dir: Path = args.output
+
+    base_dir = Path(__file__).parent.resolve()
+    services = [d for d in base_dir.joinpath("docker").iterdir() if d.is_dir()]
+
+    sif_dir.mkdir(parents=True, exist_ok=True)
+    session.log(f"Apptainer .sif files will be saved to: {sif_dir}")
+
+    docker_failed = []
+    apptainer_failed = []
+
+    for service in services:
+        sif_name = f"GAQA_{service.name}.sif"
+        sif_path = sif_dir / sif_name
+
+        if sif_path.exists():
+            session.log(f"[{service.name}] Exists. Do you want to overwrite? [y/N]")
+            answer = input().strip().lower()
+            if answer != "y":
+                session.log(f"[{service.name}] Skipping...")
+                continue
+
+        dockerfile = service / "Dockerfile"
+        tag = f"gaqa_{service.name.lower()}:latest"
+
+        session.log("")
+        session.log(f"[{service.name}] Building Docker image...")
+
+        try:
+            cmd = [
+                "docker",
+                "build",
+                "-t",
+                tag,
+                "-f",
+                str(dockerfile),
+            ]
+            if service.name == "interproscan":
+                cmd += ["--build-arg", f"VERSION={INTERPRO_VERSION}"]
+       
+            cmd += [str(service)]
+
+            if service.name == "python":
+                # temporarily copy the pyproject.toml to the docker/python directory for the build context
+                temp_pyproject_path = service / "pyproject.toml"
+                temp_pyproject_path.write_text((base_dir / "pyproject.toml").read_text())
+                session.log(f"[{service.name}] Copied pyproject.toml to {temp_pyproject_path} for Docker build context")
+            
+
+            session.run(
+                *cmd,
+                external=True,
+            )
+
+            if service.name == "python":
+                temp_pyproject_path.unlink()
+                session.log(f"[{service.name}] Removed temporary pyproject.toml from {temp_pyproject_path}")
+       
+            session.log(f"[{service.name}] ✓ Docker image built as {tag}")
+        except Exception:
+            session.log(f"[{service.name}] ✗ Docker build failed — skipping Apptainer conversion")
+            docker_failed.append(service)
+            continue
+
+        session.log(f"[{service.name}] Converting to Apptainer .sif -> {sif_path}")
         try:
             session.run(
                 "apptainer",
                 "build",
-                str(singularity_images_dir.joinpath(definition_file.with_suffix(".sif").name)),
-                str(definition_file),
+                "--force",
+                str(sif_path),
+                f"docker-daemon:{tag}",
                 external=True,
             )
-        # Offers to rebuild, if user says no, it will skip to the next one instead of erroring out.
-        except Exception as e:
-            print(f"Error building {definition_file.name}: {e}")
-            continue
+            session.log(f"[{service.name}] ✓ Apptainer .sif saved to {sif_path}")
+        except Exception:
+            session.log(f"[{service.name}] ✗ Apptainer conversion failed")
+            apptainer_failed.append(service)
+
+    session.log("")
+    session.log("=" * 50)
+    session.log("Build Summary")
+    session.log("=" * 50)
+
+    for service in services:
+        if service in docker_failed:
+            session.log(f"  ✗ {service.name} (docker build failed)")
+        elif service in apptainer_failed:
+            session.log(f"  ~ {service.name} (docker ok, apptainer failed)")
+        else:
+            session.log(f"  ✓ {service.name} ({sif_dir / f'GAQA_{service.name}.sif'})")
+
+    all_failed = docker_failed + apptainer_failed
+    if all_failed:
+        session.error(f"\n{len(all_failed)} container(s) had errors: {', '.join([s.name for s in all_failed])}")
 
 
 @nox.session(python=PYTHON_VERSION)

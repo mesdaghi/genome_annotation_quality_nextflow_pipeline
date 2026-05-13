@@ -116,7 +116,7 @@ java -version
 
 ---
 
-### 3. Set Up Python Environments
+### 3. Containers 
 
 The pipeline requires separate Python environments for **Protenix**, **Metapredict**, **PSAURON**.
 
