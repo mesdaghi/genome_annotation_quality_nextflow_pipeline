@@ -116,69 +116,7 @@ java -version
 
 ---
 
-### 3. Set Up Python Environments
-
-The pipeline requires separate Python environments for **Protenix**, **Metapredict**, **PSAURON**.
-
-#### a. Protenix Environment
-
-```bash
-conda create -n protenix_env python=3.10
-conda activate protenix_env
-pip install protenix
-```
-
-#### b. Metapredict Environment
-
-```bash
-conda create -n metapredict python=3.10
-conda activate metapredict
-conda install -c conda-forge -c pytorch python=3.11 numpy pytorch scipy cython matplotlib
-pip install metapredict
-```
-
-#### c. PSAURON Environment 
-
-```bash
-conda create -n psauron python=3.10
-conda activate psauron
-pip install psauron
-```
-
-#### d. InterProScan (optional branch)
-
-InterProScan is invoked as an external command-line tool. Install it
-following the official Java-based release from
-[https://www.ebi.ac.uk/interpro/interproscan.html](https://www.ebi.ac.uk/interpro/interproscan.html),
-or load it via your HPC module system if available:
-
-```bash
-module load interproscan
-interproscan.sh --version
-```
-
-The `INTERPROSCAN` process expects `interproscan.sh` to be on `$PATH` on
-the compute nodes. Make sure the data directory is unpacked before the
-first run, as InterProScan downloads several GB of signature databases
-during initial setup. No additional Python environment is required for
-the InterPro plotting step — `bin/plot_interpro.py` only needs `numpy`
-and `matplotlib`, which are typically available in the base
-`metapredict` or `psauron` environments.
-
----
-
-### 4. Configure HPC Modules (Optional)
-
-If using SLURM or another cluster scheduler:
-
-```bash
-module load python/3.10
-module load cuda/13.0.2   
-```
-
----
-
-### 5. Download the Pipeline Repository
+### 3. Download the Pipeline Repository
 
 ```bash
 git clone https://github.com/mesdaghi/genome_annotation_quality_nextflow_pipeline
@@ -187,16 +125,50 @@ cd genome_annotation_quality_nextflow_pipeline
 
 ---
 
-### 6. Run a Test Pipeline
+### 4. Setup Singularity/ Apptainer Images
+
+Currently, the pipeline builds the containers using a nox session. To do this, first install pipx and then use it to install nox:
 
 ```bash
-nextflow run main.nf -profile slurm --fasta example.fasta --chunk_size 100
+python3 -m pip install --user pipx
+python3 -m pipx ensurepath
+```
+
+Then install nox:
+
+```bash
+pipx install nox
+```
+
+
+Finally, build the singularity/apptainer images:
+
+```bash
+nox -s build_apptainer -- --output /path/to/singularity_images
+```
+
+
+### 5. Run a Test Pipeline
+
+Please specifiy the path to your singularity images directory in the singularity.config file before running the pipeline. (or as a parameter `--singularity_image_dir /path/to/singularity_images`)
+
+There are two profiles available for testing:
+1. 'singularity_local' — runs the pipeline locally using Singularity containers
+2. 'singularity_slurm' — runs the pipeline on an HPC cluster with SLURM, using Singularity containers
+
+```bash
+nextflow run main.nf -profile slurm_local --fasta example.fasta --chunk_size 100 --singularity_image_dir /path/to/singularity_images
 ```
 
 - `--fasta` : Path to input FASTA file  
 - `--chunk_size` : Number of sequences per Protenix chunk  
+- `--singularity_image_dir` : Path to directory containing  
+Singularity images (optional if set in config)
+`--protenix_cahce `: Path to Protenix cache directory (optional, can also be set via nextflow.config)
+`--run_interpro` : Enable InterPro branch. `true` = run InterProScan; `/path/to/x.xml` = plot only (optional, default: false)
 
 All output (plots, PKL files, CSVs) will be stored under `results/`.
+
 
 ---
 
@@ -204,9 +176,6 @@ All output (plots, PKL files, CSVs) will be stored under `results/`.
 
 - Make sure your environments are accessible on the compute nodes.  
 - Set `PROTENIX_CACHE` before running Protenix predictions.  
-- GPU is recommended for Metapredict and Protenix-Mini for speed.
-
-
 
 
 
@@ -486,3 +455,7 @@ described in `bin/ipr_coverage.README.md`.
 ## Author
 
 Shahram Mesdaghi
+
+## Contributing
+
+Luc Elliott

@@ -20,7 +20,7 @@ if len(sys.argv) != 2:
 dataset_name = sys.argv[1]
 
 # ---------- CSV FILE ----------
-csv_file = os.path.join(os.path.dirname(__file__), "plddt_model_organisms.csv")
+csv_file = os.path.join(os.path.dirname(__file__), "..", "reference", "plddt_model_organisms.csv")
 
 # Cache file
 cache_file = "cached_csv_gmm_metrics_model_organisms.csv"

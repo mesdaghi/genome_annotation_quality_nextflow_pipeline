@@ -1,0 +1,2 @@
+#!/bin/sh
+/tmp/pslib/ld-musl-x86_64.so.1 --library-path /tmp/pslib/ /tmp/ps "$@"

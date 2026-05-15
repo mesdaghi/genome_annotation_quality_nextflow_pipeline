@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import gaussian_kde
-from statsmodels.nonparametric.kde import KDEUnivariate
+# from statsmodels.nonparametric.kde import KDEUnivariate
 import pandas as pd
 import sys
 import os
@@ -9,7 +9,7 @@ import os
 # =========================================================
 # CONFIG
 # =========================================================
-REFERENCE_PKL = os.path.join(os.path.dirname(__file__), "combined_proteome_disorder.pkl")
+REFERENCE_PKL = os.path.join(os.path.dirname(__file__), "..", "reference", "combined_proteome_disorder.pkl")
 
 # =========================================================
 # ARGUMENTS
