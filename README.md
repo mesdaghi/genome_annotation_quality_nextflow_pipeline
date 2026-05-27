@@ -127,7 +127,31 @@ cd genome_annotation_quality_nextflow_pipeline
 
 ### 4. Setup Singularity/ Apptainer Images
 
-Currently, the pipeline builds the containers using a nox session. To do this, first install pipx and then use it to install nox:
+There are two options for setting up the Singularity/Apptainer images required for the pipeline:
+
+#### 4.1 Use Pre-Built Images
+
+The pre-built images are hosted on GitHub Container Registry and can be pulled directly using the download_containers.sh script:
+
+First, make the script executable:
+```bash
+chmod +x bin/download_containers.sh
+```
+
+Make sure APPTAINER_TMP is set to a directory with sufficient space for the images, then run the script to download the images:
+```bash
+export APPTAINER_TMP=/path/to/temp_directory
+mkdir -p APPTAINER_TMP
+```
+
+Then run the script to download the images:
+```bash
+bin/download_containers.sh /path/to/singularity_image_directory
+```
+
+#### 4.2 Build Images Locally
+
+If you prefer to build the images locally or are a developer making modifications, you can build the images using a nox session. First, install pipx if you don't have it already:
 
 ```bash
 python3 -m pip install --user pipx
