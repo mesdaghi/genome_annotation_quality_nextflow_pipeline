@@ -7,10 +7,7 @@ import glob
 import pandas as pd
 import os
 
-from scipy.stats import skew
 from sklearn.mixture import GaussianMixture
-import matplotlib.cm as cm
-import matplotlib.colors as mcolors
 from adjustText import adjust_text
 
 if len(sys.argv) != 2:
@@ -20,28 +17,82 @@ if len(sys.argv) != 2:
 dataset_name = sys.argv[1]
 
 # ---------- CSV FILE ----------
-csv_file = os.path.join(os.path.dirname(__file__), "..", "reference", "plddt_model_organisms.csv")
+# Resolve CSV path robustly. Search order:
+#   1. $PLDDT_CSV environment variable (if set)
+#   2. ./plddt_model_organisms.csv               (current working dir)
+#   3. ./reference/plddt_model_organisms.csv     (common project layout)
+#   4. <script_dir>/plddt_model_organisms.csv    (legacy behaviour)
+#   5. <script_dir>/reference/plddt_model_organisms.csv
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+_csv_candidates = [
+    os.environ.get("PLDDT_CSV"),
+    "plddt_model_organisms.csv",
+    os.path.join("reference", "plddt_model_organisms.csv"),
+    os.path.join(_script_dir, "plddt_model_organisms.csv"),
+    os.path.join(_script_dir, "reference", "plddt_model_organisms.csv"),
+    # Nextflow-style layout: script in bin/, CSV in sibling reference/
+    os.path.join(_script_dir, "..", "reference", "plddt_model_organisms.csv"),
+]
+csv_file = next((p for p in _csv_candidates if p and os.path.exists(p)), None)
+if csv_file is None:
+    print("ERROR: plddt_model_organisms.csv not found. Looked in:")
+    for p in _csv_candidates:
+        if p:
+            print(f"  - {p}")
+    print("Set $PLDDT_CSV to override, or place the file next to the script.")
+    sys.exit(1)
+print(f"Using CSV: {csv_file}")
 
-# Cache file
-cache_file = "cached_csv_gmm_metrics_model_organisms.csv"
+# Cache file — bumped to v2 because schema changed (Skew column removed).
+# Lives in cwd; in Nextflow each task gets a fresh work dir so the cache
+# is effectively single-run, but the CSV GMM fits are cheap so this is fine.
+cache_file = "cached_csv_gmm_metrics_model_organisms_v2.csv"
 
 # Species to exclude from CSV
-species_to_exclude = ["Cauris6684", "Homo_sapiens_2k", "afdb_Homo_sapiens_2k","CaurisB8441", "Pan_troglodytes","Rattus_norvegicus" ]
+species_to_exclude = ["Cauris6684", "Homo_sapiens_2k", "afdb_Homo_sapiens_2k", "CaurisB8441", "Pan_troglodytes", "Rattus_norvegicus"]
+
+# ---------- TAXONOMY ----------
+# Grouping: kingdom-level, but protists are split by supergroup since
+# Apicomplexa (Toxoplasma, Plasmodium) and Euglenozoa (Trypanosoma) are
+# not meaningfully related and tend to behave differently.
+SPECIES_TAXONOMY = {
+    "Homo_sapiens":             "Metazoa",
+    "Mus_musculus":             "Metazoa",
+    "Drosophila_melanogaster":  "Metazoa",
+    "Saccharomyces_cerevisiae": "Fungi",
+    "Arabidopsis_thaliana":     "Plants",
+    "Toxoplasma_gondii":        "Apicomplexa",
+    "Plasmodium_falciparum":    "Apicomplexa",
+    "Trypanosoma_brucei":       "Euglenozoa",
+}
+
+# Fixed colour mapping so colours stay stable across runs and datasets
+TAXON_COLOURS = {
+    "Metazoa":     "#1f77b4",  # blue
+    "Fungi":       "#ff7f0e",  # orange
+    "Plants":      "#2ca02c",  # green
+    "Apicomplexa": "#d62728",  # red
+    "Euglenozoa":  "#9467bd",  # purple
+    "Unknown":     "#7f7f7f",  # grey fallback
+}
+
+def get_taxon(species):
+    return SPECIES_TAXONOMY.get(species, "Unknown")
 
 # ---------- LOAD CSV (all species except excluded, HS renamed) ----------
-csv_species_values = {}
-try:
-    df_csv = pd.read_csv(csv_file)
-    df_csv["Species"] = df_csv["Species"].replace({"HS": "Homo_sapiens"})
-    df_csv = df_csv[~df_csv["Species"].isin(species_to_exclude)]
-    csv_species_values = (
-        df_csv.groupby("Species")["Mean_pLDDT"]
-        .apply(list)
-        .to_dict()
-    )
-    print("Loaded CSV species:", list(csv_species_values.keys()))
-except Exception as e:
-    print("CSV not loaded:", e)
+df_csv = pd.read_csv(csv_file)
+df_csv["Species"] = df_csv["Species"].replace({"HS": "Homo_sapiens"})
+df_csv = df_csv[~df_csv["Species"].isin(species_to_exclude)]
+csv_species_values = (
+    df_csv.groupby("Species")["Mean_pLDDT"]
+    .apply(list)
+    .to_dict()
+)
+print("Loaded CSV species:", list(csv_species_values.keys()))
+if not csv_species_values:
+    print("ERROR: CSV loaded but contains no species after filtering. "
+          "Check species_to_exclude and CSV contents.")
+    sys.exit(1)
 
 # ---------- LOAD PKL ----------
 pkl_files = glob.glob(f"plddt_all_values_{dataset_name}*.pkl")
@@ -177,7 +228,6 @@ metrics = []
 if os.path.exists(cache_file):
     print("Loading cached CSV GMM metrics...")
     csv_metrics_df = pd.read_csv(cache_file)
-    # Apply rename and exclusions to cache in case it was built with old names
     csv_metrics_df["Species"] = csv_metrics_df["Species"].replace({"HS": "Homo_sapiens"})
     csv_metrics_df = csv_metrics_df[~csv_metrics_df["Species"].isin(species_to_exclude)]
 else:
@@ -194,7 +244,6 @@ else:
         upper_prop = gmm.weights_[order][1]
         csv_metrics.append({
             "Species": sp,
-            "Skew": skew(values),
             "GMM_upper_prop": upper_prop,
             "Prop_ge_70": np.mean(values >= 70)
         })
@@ -206,7 +255,6 @@ else:
 for _, row in csv_metrics_df.iterrows():
     metrics.append({
         "Species": row["Species"],
-        "Skew": row["Skew"],
         "GMM_upper_prop": row["GMM_upper_prop"],
         "Prop_ge_70": row["Prop_ge_70"],
         "Is_PKL": False
@@ -225,37 +273,35 @@ for sp, values in species_values.items():
     upper_prop = gmm.weights_[order][1]
     metrics.append({
         "Species": sp,
-        "Skew": skew(values),
         "GMM_upper_prop": upper_prop,
         "Prop_ge_70": np.mean(values >= 70),
         "Is_PKL": True
     })
 
 df_metrics = pd.DataFrame(metrics)
+df_metrics["Taxon"] = df_metrics["Species"].map(get_taxon)
+df_metrics["Colour"] = df_metrics["Taxon"].map(TAXON_COLOURS)
 
 # ---------------------------
-# SCATTER — all points coloured by skew, PKL query highlighted
+# SCATTER — coloured by taxon, PKL query highlighted
 # ---------------------------
-norm = mcolors.Normalize(
-    vmin=df_metrics["Skew"].min(),
-    vmax=df_metrics["Skew"].max()
-)
-cmap = cm.viridis
-
 fig, ax = plt.subplots(figsize=(9, 7))
 
-# Plot all points together coloured by skew
-sc = ax.scatter(
-    df_metrics["GMM_upper_prop"],
-    df_metrics["Prop_ge_70"],
-    c=df_metrics["Skew"],
-    cmap=cmap,
-    norm=norm,
-    alpha=0.8,
-    zorder=2
-)
+# Plot one scatter per taxon so we get a clean categorical legend
+for taxon, group in df_metrics.groupby("Taxon"):
+    ax.scatter(
+        group["GMM_upper_prop"],
+        group["Prop_ge_70"],
+        c=TAXON_COLOURS.get(taxon, TAXON_COLOURS["Unknown"]),
+        label=taxon,
+        alpha=0.85,
+        edgecolors="black",
+        linewidths=0.3,
+        s=60,
+        zorder=2
+    )
 
-fig.colorbar(sc, ax=ax, label="Skew")
+ax.legend(title="Taxon", loc="best", frameon=True)
 
 # Expand axis limits by 10% on each side to prevent clipping
 x_vals = df_metrics["GMM_upper_prop"]
@@ -276,7 +322,7 @@ for _, row in df_metrics[~df_metrics["Is_PKL"]].iterrows():
     )
     texts.append(t)
 
-# Overlay PKL query species with red circle — no legend entry
+# Overlay PKL query species with red ring — no legend entry
 pkl_points = df_metrics[df_metrics["Is_PKL"]]
 
 if len(pkl_points) > 0:

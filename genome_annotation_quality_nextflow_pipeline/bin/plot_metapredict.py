@@ -1,7 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import gaussian_kde
-# from statsmodels.nonparametric.kde import KDEUnivariate
 import pandas as pd
 import sys
 import os
@@ -10,6 +9,25 @@ import os
 # CONFIG
 # =========================================================
 REFERENCE_PKL = os.path.join(os.path.dirname(__file__), "..", "reference", "combined_proteome_disorder.pkl")
+
+# Species set must match the pLDDT plot (plot_plddt.py).
+# These are the species we *want* to show.
+SPECIES_TO_INCLUDE = {
+    "Homo_sapiens",
+    "Mus_musculus",
+    "Drosophila_melanogaster",
+    "Saccharomyces_cerevisiae",
+    "Arabidopsis_thaliana",
+    "Toxoplasma_gondii",
+    "Plasmodium_falciparum",
+    "Trypanosoma_brucei",
+}
+
+# Species explicitly dropped (kept in sync with plot_plddt.py for clarity)
+SPECIES_TO_EXCLUDE = {
+    "Cauris6684", "Homo_sapiens_2k", "afdb_Homo_sapiens_2k",
+    "CaurisB8441", "Pan_troglodytes", "Rattus_norvegicus",
+}
 
 # =========================================================
 # ARGUMENTS
@@ -32,8 +50,28 @@ if not os.path.exists(REFERENCE_PKL):
 df = pd.read_pickle(REFERENCE_PKL)
 print("Loaded reference PKL")
 
-species_list = df["species"].unique()
-print("Species found:", species_list)
+# Normalise any aliases (mirrors HS -> Homo_sapiens rename in plot_plddt.py)
+df["species"] = df["species"].replace({"HS": "Homo_sapiens"})
+
+available_species = set(df["species"].unique())
+print("Species found in PKL:", sorted(available_species))
+
+# Apply exclusion list first (drops the unwanted extras like Pan_troglodytes etc.)
+df = df[~df["species"].isin(SPECIES_TO_EXCLUDE)]
+
+# Then restrict to the target set
+df = df[df["species"].isin(SPECIES_TO_INCLUDE)]
+
+kept_species = sorted(df["species"].unique())
+print("Species kept after filtering:", kept_species)
+
+# Warn about anything in the target set with no data in the PKL
+missing = sorted(SPECIES_TO_INCLUDE - set(kept_species))
+if missing:
+    print("WARNING: the following target species are NOT in the disorder PKL "
+          "and will be absent from the plot:")
+    for sp in missing:
+        print(f"  - {sp}")
 
 # =========================================================
 # LOAD HIGHLIGHT CSV
@@ -96,4 +134,3 @@ plt.savefig(f"{dataset_label}_mean_disorder_density_scipy.png", dpi=300)
 plt.close()
 
 print("Done — overlay plots generated")
-
