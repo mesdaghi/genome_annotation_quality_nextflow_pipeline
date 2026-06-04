@@ -257,7 +257,9 @@ def load_models(json_path: Path) -> dict:
         data = json.load(fh)
     if not data:
         raise ValueError(f"{json_path} is empty.")
-    return data
+    # Normalise legacy 'Genus species' keys to 'Genus_species' so labels and
+    # cross-tool comparisons are consistent with the rest of the pipeline.
+    return {k.replace(" ", "_"): v for k, v in data.items()}
 
 
 def compute_query(fasta_path: Path, xml_path: Path) -> dict:
