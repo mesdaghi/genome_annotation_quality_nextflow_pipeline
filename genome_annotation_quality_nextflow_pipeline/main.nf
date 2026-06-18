@@ -40,13 +40,16 @@ workflow {
 
     pkl_ch = PROCESS_MODELS(collected_ch)
 
-    plddt_plot_ch = PLOT_PLDDT(pkl_ch)
-
     // ================= METAPREDICT BRANCH ================= //
+    // (run first so its CSV is available for the disorder-coloured
+    //  GMM scatter inside PLOT_PLDDT)
 
     metapredict_ch = METAPREDICT_DISORDER(fasta_ch)
 
     metapredict_plot_ch = PLOT_METAPREDICT(metapredict_ch)
+
+    // PLOT_PLDDT consumes both the pLDDT PKL and the metapredict CSV
+    plddt_plot_ch = PLOT_PLDDT(pkl_ch.join(metapredict_ch, by: 0))
 
     // ================= PSAURON BRANCH ================= //
 
