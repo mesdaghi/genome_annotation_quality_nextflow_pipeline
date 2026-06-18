@@ -11,7 +11,7 @@ process PLOT_PLDDT {
     publishDir "results/plots", mode: 'copy' // having dirs of the same name sometimes causes issues with singularity.
 
     input:
-    tuple val(dataset_name), path(pkl_file)
+    tuple val(dataset_name), path(pkl_file), path(metapredict_csv)
 
     output:
     tuple val(dataset_name), path("plddt_*_${dataset_name}.png")
@@ -20,6 +20,6 @@ process PLOT_PLDDT {
     """
     export MPLCONFIGDIR=\$(mktemp -d)
     
-    python3 ${projectDir}/bin/plot_plddt.py ${dataset_name}
+    python3 ${projectDir}/bin/plot_plddt.py ${dataset_name} ${metapredict_csv}
     """
 }

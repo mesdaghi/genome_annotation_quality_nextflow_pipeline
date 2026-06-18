@@ -10,11 +10,12 @@ import os
 from sklearn.mixture import GaussianMixture
 from adjustText import adjust_text
 
-if len(sys.argv) != 2:
-    print("Usage: python plot_plddt.py <dataset_name>")
+if len(sys.argv) < 2 or len(sys.argv) > 3:
+    print("Usage: python plot_plddt.py <dataset_name> [metapredict_csv]")
     sys.exit(1)
 
 dataset_name = sys.argv[1]
+metapredict_csv = sys.argv[2] if len(sys.argv) == 3 else None
 
 # ---------- CSV FILE ----------
 # Resolve CSV path robustly. Search order:
@@ -42,6 +43,27 @@ if csv_file is None:
     print("Set $PLDDT_CSV to override, or place the file next to the script.")
     sys.exit(1)
 print(f"Using CSV: {csv_file}")
+
+# ---------- DISORDER PKL (for disorder-coloured scatter) ----------
+# Same search logic as the pLDDT CSV — works whether run standalone,
+# from the project root, or as a Nextflow process.
+_disorder_candidates = [
+    os.environ.get("DISORDER_PKL"),
+    "combined_proteome_disorder.pkl",
+    os.path.join("reference", "combined_proteome_disorder.pkl"),
+    os.path.join(_script_dir, "combined_proteome_disorder.pkl"),
+    os.path.join(_script_dir, "reference", "combined_proteome_disorder.pkl"),
+    os.path.join(_script_dir, "..", "reference", "combined_proteome_disorder.pkl"),
+]
+disorder_pkl_path = next((p for p in _disorder_candidates if p and os.path.exists(p)), None)
+if disorder_pkl_path is None:
+    print("NOTE: combined_proteome_disorder.pkl not found in any of:")
+    for p in _disorder_candidates:
+        if p:
+            print(f"  - {p}")
+    print("Disorder-coloured scatter will be skipped.")
+else:
+    print(f"Using disorder PKL: {disorder_pkl_path}")
 
 # Cache file — bumped to v2 because schema changed (Skew column removed).
 # Lives in cwd; in Nextflow each task gets a fresh work dir so the cache
@@ -362,3 +384,158 @@ plt.savefig(f"plddt_gmm_scatter_{dataset_name}.png", dpi=300)
 plt.close()
 
 print("GMM scatter diagnostics generated (CSV cached, PKL highlighted).")
+
+
+# =========================================================
+# DISORDER-COLOURED SCATTER — same axes/points as the taxon scatter,
+# but coloured by proteome-wide mean disorder.
+# Skipped (with a warning) if either the disorder reference PKL or
+# the query metapredict CSV is unavailable.
+# =========================================================
+
+def _compute_query_mean_disorder(csv_path):
+    """Per-protein mean disorder from a metapredict CSV (fields 2+ per row),
+    then averaged across proteins. Matches plot_metapredict.py's parsing."""
+    per_protein = []
+    with open(csv_path) as fh:
+        for line in fh:
+            parts = line.strip().split(",")
+            try:
+                scores = [float(x) for x in parts[2:] if x.strip()]
+            except ValueError:
+                continue
+            if scores:
+                per_protein.append(float(np.mean(scores)))
+    if not per_protein:
+        return None
+    return float(np.mean(per_protein))
+
+
+can_make_disorder_plot = disorder_pkl_path is not None and metapredict_csv is not None
+if not can_make_disorder_plot:
+    reasons = []
+    if disorder_pkl_path is None:
+        reasons.append("no disorder reference PKL")
+    if metapredict_csv is None:
+        reasons.append("no metapredict CSV passed for the query")
+    print(f"Skipping disorder-coloured scatter ({', '.join(reasons)}).")
+else:
+    print("Building disorder-coloured scatter...")
+
+    # Reference disorder: per-species mean of mean_disorder
+    df_disorder = pd.read_pickle(disorder_pkl_path)
+    df_disorder["species"] = df_disorder["species"].replace({"HS": "Homo_sapiens"})
+    ref_disorder = (
+        df_disorder.groupby("species", observed=True)["mean_disorder"]
+        .mean()
+        .to_dict()
+    )
+
+    # Query disorder
+    query_mean_disorder = None
+    if os.path.exists(metapredict_csv):
+        query_mean_disorder = _compute_query_mean_disorder(metapredict_csv)
+        if query_mean_disorder is not None:
+            print(f"  Query mean disorder: {query_mean_disorder:.4f}")
+        else:
+            print(f"  WARNING: no usable rows in {metapredict_csv}")
+    else:
+        print(f"  WARNING: metapredict CSV not found: {metapredict_csv}")
+
+    # Attach a MeanDisorder value to each row of df_metrics
+    def _disorder_for_row(row):
+        if row["Is_PKL"]:
+            return query_mean_disorder if query_mean_disorder is not None else np.nan
+        return ref_disorder.get(row["Species"], np.nan)
+
+    df_metrics["MeanDisorder"] = df_metrics.apply(_disorder_for_row, axis=1)
+
+    valid_mask = df_metrics["MeanDisorder"].notna()
+    n_missing = int((~valid_mask).sum())
+    if n_missing > 0:
+        missing_species = df_metrics.loc[~valid_mask, "Species"].tolist()
+        print(f"  {n_missing} point(s) without disorder data (plotted in grey): {missing_species}")
+
+    fig, ax = plt.subplots(figsize=(9, 7))
+
+    # Points with disorder data — coloured by viridis
+    pts_valid = df_metrics[valid_mask]
+    sc = ax.scatter(
+        pts_valid["GMM_upper_prop"],
+        pts_valid["Prop_ge_70"],
+        c=pts_valid["MeanDisorder"],
+        cmap="viridis",
+        alpha=0.9,
+        edgecolors="black",
+        linewidths=0.3,
+        s=70,
+        zorder=2,
+    )
+    cbar = fig.colorbar(sc, ax=ax)
+    cbar.set_label("Mean disorder (proteome-wide)")
+
+    # Points without disorder data — grey, with a small legend entry
+    pts_missing = df_metrics[~valid_mask]
+    if len(pts_missing) > 0:
+        ax.scatter(
+            pts_missing["GMM_upper_prop"],
+            pts_missing["Prop_ge_70"],
+            c="lightgrey",
+            alpha=0.85,
+            edgecolors="black",
+            linewidths=0.3,
+            s=70,
+            zorder=2,
+            label="No disorder data",
+        )
+        ax.legend(loc="best", frameon=True, fontsize=9)
+
+    # Same axis limits as the taxon scatter (recompute, since axis() not stored)
+    x_vals = df_metrics["GMM_upper_prop"]
+    y_vals = df_metrics["Prop_ge_70"]
+    x_margin = (x_vals.max() - x_vals.min()) * 0.10
+    y_margin = (y_vals.max() - y_vals.min()) * 0.10
+    ax.set_xlim(x_vals.min() - x_margin, x_vals.max() + x_margin)
+    ax.set_ylim(y_vals.min() - y_margin, y_vals.max() + y_margin)
+
+    # CSV species labels
+    disorder_texts = []
+    for _, row in df_metrics[~df_metrics["Is_PKL"]].iterrows():
+        disorder_texts.append(ax.text(
+            row["GMM_upper_prop"], row["Prop_ge_70"], row["Species"],
+            fontsize=8
+        ))
+
+    # Query species — red ring + bold label
+    pkl_points = df_metrics[df_metrics["Is_PKL"]]
+    if len(pkl_points) > 0:
+        ax.scatter(
+            pkl_points["GMM_upper_prop"],
+            pkl_points["Prop_ge_70"],
+            facecolors="none",
+            edgecolors="red",
+            s=200,
+            linewidths=2,
+            zorder=3,
+        )
+        for _, row in pkl_points.iterrows():
+            disorder_texts.append(ax.text(
+                row["GMM_upper_prop"], row["Prop_ge_70"], row["Species"],
+                fontsize=9, fontweight="bold", color="red"
+            ))
+
+    adjust_text(
+        disorder_texts,
+        ax=ax,
+        expand=(1.3, 1.5),
+        arrowprops=dict(arrowstyle="-", color="grey", lw=0.5),
+    )
+
+    ax.set_xlabel("GMM Upper Component Proportion")
+    ax.set_ylabel("Proportion ≥70 pLDDT")
+    ax.set_title(f"GMM Scatter — coloured by Mean Disorder ({dataset_name})")
+    plt.tight_layout()
+    plt.savefig(f"plddt_gmm_scatter_disorder_{dataset_name}.png", dpi=300)
+    plt.close()
+    print("Disorder-coloured scatter generated.")
+

@@ -24,6 +24,7 @@ from PIL import Image as PILImage
 # more specific fragments must come before more general ones)
 PLOT_LABELS = [
     ("plddt_density_scipy",                          "pLDDT Distribution (SciPy)"),
+    ("plddt_gmm_scatter_disorder",                   "Proteome Structural Confidence Landscape — coloured by mean disorder"),
     ("plddt_gmm_scatter",                            "Proteome Structural Confidence Landscape"),
     ("metapredict_mean_disorder_density_scipy",      "Metapredict — Mean Disorder Density (SciPy)"),
     ("metapredict_mean_disorder_density_statsmodels","Metapredict — Mean Disorder Density (Statsmodels)"),
@@ -121,4 +122,5 @@ if __name__ == "__main__":
     output_pdf   = sys.argv[2]
     png_files    = sys.argv[3:]
     build_report(dataset_name, output_pdf, png_files)
+
 
