@@ -146,9 +146,18 @@ Finally, build the singularity/apptainer images:
 ```bash
 nox -s build_apptainer -- --output /path/to/singularity_images
 ```
+### 5. Download InterProScan Data
+
+The exact steps for downloading InterProScan data can be found here [InterProScan Data Download](https://interproscan-docs.readthedocs.io/en/v5/HowToUseViaContainer.html). But, in short, you can download the data using the following commands
 
 
-### 5. Run a Test Pipeline
+```bash
+curl -O http://ftp.ebi.ac.uk/pub/software/unix/iprscan/5/5.78-109.0/alt/interproscan-data-5.78-109.0.tar.gz
+
+tar -pxzf interproscan-data-5.78-109.0.tar.gz
+```
+
+### 6. Run a Test Pipeline
 
 Please specifiy the path to your singularity images directory in the singularity.config file before running the pipeline. (or as a parameter `--singularity_image_dir /path/to/singularity_images`)
 
@@ -158,6 +167,12 @@ There are two profiles available for testing:
 
 ```bash
 nextflow run main.nf -profile slurm_local --fasta example.fasta --chunk_size 100 --singularity_image_dir /path/to/singularity_images
+
+```
+If using InterProScan, please specify the path to your InterProScan data directory in the singularity.config file before running the pipeline. (or as a parameter `--interpro_data /path/to/interpro_data`) For example:
+
+```bash
+nextflow run main.nf -profile slurm_local --fasta example.fasta --chunk_size 100 --singularity_image_dir /path/to/singularity_images --use_interpro true --interpro_data /path/to/interpro_data/interproscan-5.77-108.0/data/
 ```
 
 - `--fasta` : Path to input FASTA file  
@@ -166,6 +181,7 @@ nextflow run main.nf -profile slurm_local --fasta example.fasta --chunk_size 100
 Singularity images (optional if set in config)
 `--protenix_cahce `: Path to Protenix cache directory (optional, can also be set via nextflow.config)
 `--run_interpro` : Enable InterPro branch. `true` = run InterProScan; `/path/to/x.xml` = plot only (optional, default: false)
+`--interpro_data` : Path to InterProScan data directory (optional, can also be set via nextflow.config)
 
 All output (plots, PKL files, CSVs) will be stored under `results/`.
 
@@ -176,7 +192,6 @@ All output (plots, PKL files, CSVs) will be stored under `results/`.
 
 - Make sure your environments are accessible on the compute nodes.  
 - Set `PROTENIX_CACHE` before running Protenix predictions.  
-
 
 
 ## Features
