@@ -17,6 +17,7 @@ include { CHUNK_IPR } from './modules/chunk_ipr.nf'
 include { INTERPROSCAN } from './modules/interproscan.nf'
 include { CONCAT_IPR } from './modules/concat_ipr.nf'
 include { PLOT_INTERPRO } from './modules/plot_interpro.nf'
+include { BUILD_SUMMARY_TSV; BUILD_SUMMARY_TSV_WITH_IPR } from './modules/build_summary_tsv.nf'
 
 
 workflow {
@@ -39,13 +40,16 @@ workflow {
 
     pkl_ch = PROCESS_MODELS(collected_ch)
 
-    plddt_plot_ch = PLOT_PLDDT(pkl_ch)
-
     // ================= METAPREDICT BRANCH ================= //
+    // (run first so its CSV is available for the disorder-coloured
+    //  GMM scatter inside PLOT_PLDDT)
 
     metapredict_ch = METAPREDICT_DISORDER(fasta_ch)
 
     metapredict_plot_ch = PLOT_METAPREDICT(metapredict_ch)
+
+    // PLOT_PLDDT consumes both the pLDDT PKL and the metapredict CSV
+    plddt_plot_ch = PLOT_PLDDT(pkl_ch.join(metapredict_ch, by: 0))
 
     // ================= PSAURON BRANCH ================= //
 
@@ -65,11 +69,11 @@ workflow {
             error "params.run_interpro must point to an InterProScan XML " +
                   "file (got: ${supplied_xml})"
         }
-        interpro_plot_ch = fasta_ch
+        interpro_inputs_ch = fasta_ch
             .map { fasta_file, dataset_name ->
                 tuple(dataset_name, fasta_file, supplied_xml)
             }
-        interpro_plot_ch = PLOT_INTERPRO(interpro_plot_ch)
+        interpro_plot_ch = PLOT_INTERPRO(interpro_inputs_ch)
 
     } else if ( params.run_interpro == true ) {
 
@@ -89,7 +93,7 @@ workflow {
         ipr_concat_ch = CONCAT_IPR(ipr_collected_ch)
 
         // Pair the merged XML back up with each dataset's FASTA for plotting
-        plot_input_ch = ipr_concat_ch
+        interpro_inputs_ch = ipr_concat_ch
             .map { dataset_name, tsv, xml -> tuple(dataset_name, xml) }
             .join(
                 fasta_ch.map { fasta_file, dataset_name -> tuple(dataset_name, fasta_file) },
@@ -97,12 +101,13 @@ workflow {
             )
             .map { dataset_name, xml, fasta_file -> tuple(dataset_name, fasta_file, xml) }
 
-        interpro_plot_ch = PLOT_INTERPRO(plot_input_ch)
+        interpro_plot_ch = PLOT_INTERPRO(interpro_inputs_ch)
 
     } else {
 
-        // Disabled — empty channel so the report join is unaffected
-        interpro_plot_ch = Channel.empty()
+        // Disabled — empty channels so the report and summary joins are unaffected
+        interpro_plot_ch   = Channel.empty()
+        interpro_inputs_ch = Channel.empty()
 
     }
 
@@ -139,4 +144,25 @@ workflow {
     }
     GENERATE_REPORT(report_ch)
 
+    // ================= SUMMARY TSV STAGE ================= //
+    // One-row TSV per dataset with the five headline plot metrics.
+    // Two process variants because the IPR column is only computable when
+    // the InterPro branch ran.
+
+    if ( params.run_interpro != false ) {
+        summary_ch = pkl_ch
+            .join(metapredict_ch, by: 0)
+            .join(psauron_ch, by: 0)
+            .join(interpro_inputs_ch, by: 0)
+            // Resulting tuple: (dataset_name, pkl, metapredict_csv, psauron_csv, fasta, xml)
+        BUILD_SUMMARY_TSV_WITH_IPR(summary_ch)
+    } else {
+        summary_ch = pkl_ch
+            .join(metapredict_ch, by: 0)
+            .join(psauron_ch, by: 0)
+            // Resulting tuple: (dataset_name, pkl, metapredict_csv, psauron_csv)
+        BUILD_SUMMARY_TSV(summary_ch)
+    }
+
 }
+

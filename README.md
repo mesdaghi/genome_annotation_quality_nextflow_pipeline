@@ -17,6 +17,8 @@ This repository contains a **Nextflow DSL2 pipeline** for:
 - Automated chunking and HPC parallelisation
 - Model processing and metric extraction
 - Comparative plotting against reference proteome datasets
+- One-row summary TSV per run, aggregating the headline plot metrics
+  across all branches
 
 The pipeline is designed for HPC environments (SLURM supported)
 and supports GPU acceleration where appropriate.
@@ -81,6 +83,38 @@ before plotting.
 
 
 
+## Summary Metrics TSV
+
+In addition to the per-branch plots and the combined PDF report, every
+pipeline run emits a single-row TSV file
+(`results/<dataset>_summary.tsv`) containing the headline numbers used
+to construct the plots. This is intended for downstream tabular
+aggregation — concatenating the summary TSVs across many runs gives a
+single table comparing all queries on the same metrics.
+
+The TSV always carries the same column schema. When the InterProScan
+branch is disabled the `ipr_hit_pct` column is left blank rather than
+removed, so the layout is stable across runs.
+
+| Column                 | Source         | Description                                                                                       |
+|------------------------|----------------|---------------------------------------------------------------------------------------------------|
+| `dataset`              | run parameter  | Dataset identifier (the FASTA basename)                                                           |
+| `total_proteins`       | pLDDT PKL      | Number of proteins for which a mean pLDDT was computed                                            |
+| `prop_ge_70`           | Protenix       | Fraction of proteins with mean pLDDT ≥ 70 (y-axis of the GMM scatter plot)                        |
+| `gmm_upper_prop`       | Protenix       | Weight of the upper component of a 2-component GMM fitted to the pLDDT distribution, with guided initialisation from the reference species (x-axis of the GMM scatter plot) |
+| `disorder_prop_gt_0p5` | Metapredict    | Proportion of proteins with mean disorder score > 0.5                                             |
+| `psauron_high_pct`     | PSAURON        | Percentage of proteins with `in-frame_score` ≥ 0.9 (the "High" bar of the PSAURON plot)           |
+| `ipr_hit_pct`          | InterProScan   | Percentage of proteins with at least one IPR-bearing hit (the "any IPR hit" total from the InterPro coverage plot). Blank if `--run_interpro` is `false`. |
+
+Two near-identical Nextflow process variants implement this stage —
+`BUILD_SUMMARY_TSV_WITH_IPR` when the InterPro branch ran, and
+`BUILD_SUMMARY_TSV` otherwise. Both invoke `bin/build_summary_tsv.py`
+with different command-line flags; the duplication is in the Nextflow
+process declarations only because DSL2 does not cleanly support
+optional `path` inputs.
+
+
+
 ## Installation Instructions
 
 Follow these steps to install and set up the **Nextflow Genome Annotation Quality Pipeline**:
@@ -127,7 +161,31 @@ cd genome_annotation_quality_nextflow_pipeline
 
 ### 4. Setup Singularity/ Apptainer Images
 
-Currently, the pipeline builds the containers using a nox session. To do this, first install pipx and then use it to install nox:
+There are two options for setting up the Singularity/Apptainer images required for the pipeline:
+
+#### 4.1 Use Pre-Built Images
+
+The pre-built images are hosted on GitHub Container Registry and can be pulled directly using the download_containers.sh script:
+
+First, make the script executable:
+```bash
+chmod +x bin/download_containers.sh
+```
+
+Make sure APPTAINER_TMP is set to a directory with sufficient space for the images, then run the script to download the images:
+```bash
+export APPTAINER_TMP=/path/to/temp_directory
+mkdir -p APPTAINER_TMP
+```
+
+Then run the script to download the images:
+```bash
+bin/download_containers.sh /path/to/singularity_image_directory
+```
+
+#### 4.2 Build Images Locally
+
+If you prefer to build the images locally or are a developer making modifications, you can build the images using a nox session. First, install pipx if you don't have it already:
 
 ```bash
 python3 -m pip install --user pipx
@@ -247,7 +305,9 @@ All output (plots, PKL files, CSVs) will be stored under `results/`.
              PNG        PNG        PNG     PNG ×2 + TSV
                 \        |          |           /
                  \       |          |          /
-                            FINAL REPORT
+                            FINAL REPORT (PDF)
+                                  +
+                       BUILD_SUMMARY_TSV  →  <dataset>_summary.tsv
 ------------------------------------------------------------------------
 
 ## Requirements
@@ -306,6 +366,9 @@ nextflow run main.nf -profile slurm \
 ## Output Structure
 
     results/
+     ├── <dataset>_report.pdf                   (combined PDF of all plots)
+     ├── <dataset>_summary.tsv                  (single-row metrics summary)
+     │
      ├── plots/
      │    ├── plddt_hist_<dataset>.png
      │    ├── plddt_density_statsmodels_<dataset>.png
@@ -448,22 +511,25 @@ described in `bin/ipr_coverage.README.md`.
 
 ## Pipeline Processes
 
-| Process               | Description                                 |
-|-----------------------|---------------------------------------------|
-| FASTA_TO_JSON         | Converts FASTA → Protenix JSON              |
-| SPLIT_JSON            | Splits JSON into chunk files                |
-| PROTENIX_PREDICT      | Runs Protenix inference (GPU)               |
-| COLLECT_CHUNKS        | Merges chunk prediction outputs             |
-| PROCESS_MODELS        | Extracts pLDDT values into PKL              |
-| PLOT_PLDDT            | Generates structure confidence plots        |
-| METAPREDICT_DISORDER  | Runs disorder prediction (GPU)              |
-| PLOT_METAPREDICT      | Generates disorder comparison plots         |
-| PSAURON_RUN           | Runs PSAURON scoring (GPU)                  |
-| PLOT_PSAURON          | Generates PSAURON overlay distribution plots|
-| CHUNK_IPR             | Splits FASTA into InterProScan chunks       |
-| INTERPROSCAN          | Runs InterProScan on each chunk             |
-| CONCAT_IPR            | Merges per-chunk XML/TSV results            |
-| PLOT_INTERPRO         | Generates InterPro coverage comparison plots|
+| Process                    | Description                                                       |
+|----------------------------|-------------------------------------------------------------------|
+| FASTA_TO_JSON              | Converts FASTA → Protenix JSON                                    |
+| SPLIT_JSON                 | Splits JSON into chunk files                                      |
+| PROTENIX_PREDICT           | Runs Protenix inference (GPU)                                     |
+| COLLECT_CHUNKS             | Merges chunk prediction outputs                                   |
+| PROCESS_MODELS             | Extracts pLDDT values into PKL                                    |
+| PLOT_PLDDT                 | Generates structure confidence plots                              |
+| METAPREDICT_DISORDER       | Runs disorder prediction (GPU)                                    |
+| PLOT_METAPREDICT           | Generates disorder comparison plots                               |
+| PSAURON_RUN                | Runs PSAURON scoring (GPU)                                        |
+| PLOT_PSAURON               | Generates PSAURON overlay distribution plots                      |
+| CHUNK_IPR                  | Splits FASTA into InterProScan chunks                             |
+| INTERPROSCAN               | Runs InterProScan on each chunk                                   |
+| CONCAT_IPR                 | Merges per-chunk XML/TSV results                                  |
+| PLOT_INTERPRO              | Generates InterPro coverage comparison plots                      |
+| GENERATE_REPORT            | Combines per-branch PNGs into the final PDF report                |
+| BUILD_SUMMARY_TSV          | Writes the single-row summary TSV (when InterPro is disabled)     |
+| BUILD_SUMMARY_TSV_WITH_IPR | Writes the single-row summary TSV including `ipr_hit_pct`         |
 
 ------------------------------------------------------------------------
 
