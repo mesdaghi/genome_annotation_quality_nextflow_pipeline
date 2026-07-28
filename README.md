@@ -77,9 +77,19 @@ genome-quality metrics:
 
 The InterProScan branch is **optional** and is enabled with
 `--run_interpro true`. Because InterProScan is computationally expensive,
-the pipeline parallelises it by chunking the input FASTA, running each
-chunk independently, and concatenating the per-chunk XML/TSV outputs
-before plotting.
+the pipeline parallelises it by chunking the input FASTA into
+`--ipr_chunks` pieces (default: 24), running each chunk independently,
+and concatenating the per-chunk XML/TSV outputs before plotting.
+
+Chunking uses greedy longest-processing-time-first (LPT) bin-packing
+(`bin/balance_chunks.sh`): sequences are sorted by length descending and
+each is assigned to whichever chunk currently has the smallest total
+residue count. This keeps per-chunk runtime balanced even when large
+multi-domain genes are clustered together in the input FASTA (naive
+sequential N-sequences-per-chunk splitting can leave one chunk with
+several giant outliers while others sit mostly idle). The assignment is
+deterministic — the same input and `--ipr_chunks` value always produce
+the same chunks.
 
 
 
@@ -334,6 +344,7 @@ nextflow run main.nf -profile slurm --fasta after_461.fasta --chunk_size 100
 | Parameter              | Description                                                                       |
 |------------------------|-----------------------------------------------------------------------------------|
 | --chunk_size           | Number of sequences per Protenix chunk                                            |
+| --ipr_chunks           | Number of length-balanced InterProScan chunks (default: 24)                       |
 | --fasta                | Path to input FASTA file                                                          |
 | --run_interpro         | Enable InterPro branch. `true` = run InterProScan; `/path/to/x.xml` = plot only   |
 | --ipr_reference_json   | Path to reference model-organism JSON (default: `bin/ipr_coverage.json`)          |
@@ -523,7 +534,7 @@ described in `bin/ipr_coverage.README.md`.
 | PLOT_METAPREDICT           | Generates disorder comparison plots                               |
 | PSAURON_RUN                | Runs PSAURON scoring (GPU)                                        |
 | PLOT_PSAURON               | Generates PSAURON overlay distribution plots                      |
-| CHUNK_IPR                  | Splits FASTA into InterProScan chunks                             |
+| CHUNK_IPR                  | Splits FASTA into length-balanced InterProScan chunks (LPT)       |
 | INTERPROSCAN               | Runs InterProScan on each chunk                                   |
 | CONCAT_IPR                 | Merges per-chunk XML/TSV results                                  |
 | PLOT_INTERPRO              | Generates InterPro coverage comparison plots                      |
