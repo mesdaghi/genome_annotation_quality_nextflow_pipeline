@@ -36,7 +36,7 @@ workflow {
 
     pred_ch = PROTENIX_PREDICT(chunks_ch)
 
-    collected_ch = COLLECT_CHUNKS(pred_ch)
+    collected_ch = COLLECT_CHUNKS(pred_ch.groupTuple(by: 0))
 
     pkl_ch = PROCESS_MODELS(collected_ch)
 
