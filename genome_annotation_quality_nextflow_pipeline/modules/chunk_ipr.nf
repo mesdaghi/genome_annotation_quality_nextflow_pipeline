@@ -9,7 +9,7 @@ process CHUNK_IPR {
    
  
     input:
-    tuple path(fasta_file), val(dataset_name)
+    tuple path(fasta_file), val(dataset_name), val(n_chunks)
 
     output:
     tuple val(dataset_name), path("ipr_chunks/*.fa")
@@ -17,6 +17,6 @@ process CHUNK_IPR {
     script:
     """
     mkdir -p ipr_chunks
-    bash ${projectDir}/bin/balance_chunks.sh --input ${fasta_file} --chunks ${params.ipr_chunks} --outdir ipr_chunks
+    bash ${projectDir}/bin/balance_chunks.sh --input ${fasta_file} --chunks ${n_chunks} --outdir ipr_chunks
     """
 }
