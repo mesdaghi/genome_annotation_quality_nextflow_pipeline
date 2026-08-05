@@ -77,9 +77,19 @@ genome-quality metrics:
 
 The InterProScan branch is **optional** and is enabled with
 `--run_interpro true`. Because InterProScan is computationally expensive,
-the pipeline parallelises it by chunking the input FASTA, running each
-chunk independently, and concatenating the per-chunk XML/TSV outputs
-before plotting.
+the pipeline parallelises it by chunking the input FASTA into
+`--ipr_chunks` pieces (default: 24), running each chunk independently,
+and concatenating the per-chunk XML/TSV outputs before plotting.
+
+Chunking uses greedy longest-processing-time-first (LPT) bin-packing
+(`bin/balance_chunks.sh`): sequences are sorted by length descending and
+each is assigned to whichever chunk currently has the smallest total
+residue count. This keeps per-chunk runtime balanced even when large
+multi-domain genes are clustered together in the input FASTA (naive
+sequential N-sequences-per-chunk splitting can leave one chunk with
+several giant outliers while others sit mostly idle). The assignment is
+deterministic — the same input and `--ipr_chunks` value always produce
+the same chunks.
 
 
 
@@ -204,9 +214,18 @@ Finally, build the singularity/apptainer images:
 ```bash
 nox -s build_apptainer -- --output /path/to/singularity_images
 ```
+### 5. Download InterProScan Data
+
+The exact steps for downloading InterProScan data can be found here [InterProScan Data Download](https://interproscan-docs.readthedocs.io/en/v5/HowToUseViaContainer.html). But, in short, you can download the data using the following commands
 
 
-### 5. Run a Test Pipeline
+```bash
+curl -O http://ftp.ebi.ac.uk/pub/software/unix/iprscan/5/5.78-109.0/alt/interproscan-data-5.78-109.0.tar.gz
+
+tar -pxzf interproscan-data-5.78-109.0.tar.gz
+```
+
+### 6. Run a Test Pipeline
 
 Please specifiy the path to your singularity images directory in the singularity.config file before running the pipeline. (or as a parameter `--singularity_image_dir /path/to/singularity_images`)
 
@@ -216,6 +235,12 @@ There are two profiles available for testing:
 
 ```bash
 nextflow run main.nf -profile slurm_local --fasta example.fasta --chunk_size 100 --singularity_image_dir /path/to/singularity_images
+
+```
+If using InterProScan, please specify the path to your InterProScan data directory in the singularity.config file before running the pipeline. (or as a parameter `--interpro_data /path/to/interpro_data`) For example:
+
+```bash
+nextflow run main.nf -profile slurm_local --fasta example.fasta --chunk_size 100 --singularity_image_dir /path/to/singularity_images --use_interpro true --interpro_data /path/to/interpro_data/interproscan-5.77-108.0/data/
 ```
 
 - `--fasta` : Path to input FASTA file  
@@ -224,6 +249,7 @@ nextflow run main.nf -profile slurm_local --fasta example.fasta --chunk_size 100
 Singularity images (optional if set in config)
 `--protenix_cahce `: Path to Protenix cache directory (optional, can also be set via nextflow.config)
 `--run_interpro` : Enable InterPro branch. `true` = run InterProScan; `/path/to/x.xml` = plot only (optional, default: false)
+`--interpro_data` : Path to InterProScan data directory (optional, can also be set via nextflow.config)
 
 All output (plots, PKL files, CSVs) will be stored under `results/`.
 
@@ -234,7 +260,6 @@ All output (plots, PKL files, CSVs) will be stored under `results/`.
 
 - Make sure your environments are accessible on the compute nodes.  
 - Set `PROTENIX_CACHE` before running Protenix predictions.  
-
 
 
 ## Features
@@ -319,6 +344,7 @@ nextflow run main.nf -profile slurm --fasta after_461.fasta --chunk_size 100
 | Parameter              | Description                                                                       |
 |------------------------|-----------------------------------------------------------------------------------|
 | --chunk_size           | Number of sequences per Protenix chunk                                            |
+| --ipr_chunks           | Number of length-balanced InterProScan chunks (default: 24)                       |
 | --fasta                | Path to input FASTA file                                                          |
 | --run_interpro         | Enable InterPro branch. `true` = run InterProScan; `/path/to/x.xml` = plot only   |
 | --ipr_reference_json   | Path to reference model-organism JSON (default: `bin/ipr_coverage.json`)          |
@@ -508,7 +534,7 @@ described in `bin/ipr_coverage.README.md`.
 | PLOT_METAPREDICT           | Generates disorder comparison plots                               |
 | PSAURON_RUN                | Runs PSAURON scoring (GPU)                                        |
 | PLOT_PSAURON               | Generates PSAURON overlay distribution plots                      |
-| CHUNK_IPR                  | Splits FASTA into InterProScan chunks                             |
+| CHUNK_IPR                  | Splits FASTA into length-balanced InterProScan chunks (LPT)       |
 | INTERPROSCAN               | Runs InterProScan on each chunk                                   |
 | CONCAT_IPR                 | Merges per-chunk XML/TSV results                                  |
 | PLOT_INTERPRO              | Generates InterPro coverage comparison plots                      |

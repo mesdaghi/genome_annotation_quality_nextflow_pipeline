@@ -26,6 +26,6 @@ process INTERPROSCAN {
         -i ${chunk_file} \
         -f TSV,XML \
         --cpu ${task.cpus} \
-        --tempdir \$TMPDIR 
+        --tempdir \$TMPDIR
     """
 }

@@ -9,7 +9,7 @@ process COLLECT_CHUNKS {
     label 'cpu'
    
     input:
-    tuple val(dataset_name), path(pred_dir)
+    tuple val(dataset_name), path(pred_dirs, stageAs: "chunk*/*")
 
     output:
     tuple val(dataset_name), path("${dataset_name}_all_predictions")
@@ -17,6 +17,8 @@ process COLLECT_CHUNKS {
     script:
     """
     mkdir -p ${dataset_name}_all_predictions
-    cp -r ${pred_dir}/* ${dataset_name}_all_predictions/
+    for d in ${pred_dirs}; do
+        cp -r \$d/* ${dataset_name}_all_predictions/
+    done
     """
 }

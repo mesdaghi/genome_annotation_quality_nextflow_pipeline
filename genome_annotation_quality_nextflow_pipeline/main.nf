@@ -36,7 +36,7 @@ workflow {
 
     pred_ch = PROTENIX_PREDICT(chunks_ch)
 
-    collected_ch = COLLECT_CHUNKS(pred_ch)
+    collected_ch = COLLECT_CHUNKS(pred_ch.groupTuple(by: 0))
 
     pkl_ch = PROCESS_MODELS(collected_ch)
 
@@ -77,8 +77,19 @@ workflow {
 
     } else if ( params.run_interpro == true ) {
 
-        // Full branch
-        ipr_chunks_ch = CHUNK_IPR(fasta_ch).transpose()
+        // Full branch — split into the same number of chunks Protenix
+        // ended up with, so both branches parallelize the same way.
+        protenix_chunk_count_ch = chunks_ch
+            .map { dataset_name, chunk_file -> tuple(dataset_name, 1) }
+            .groupTuple(by: 0)
+            .map { dataset_name, ones -> tuple(dataset_name, ones.size()) }
+
+        chunk_ipr_input_ch = fasta_ch
+            .map { fasta_file, dataset_name -> tuple(dataset_name, fasta_file) }
+            .join(protenix_chunk_count_ch, by: 0)
+            .map { dataset_name, fasta_file, n_chunks -> tuple(fasta_file, dataset_name, n_chunks) }
+
+        ipr_chunks_ch = CHUNK_IPR(chunk_ipr_input_ch).transpose()
 
         ipr_results_ch = INTERPROSCAN(ipr_chunks_ch)
 
