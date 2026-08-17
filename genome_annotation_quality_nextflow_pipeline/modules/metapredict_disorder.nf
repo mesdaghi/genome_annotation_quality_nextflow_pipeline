@@ -6,7 +6,7 @@ nextflow.enable.dsl=2
 process METAPREDICT_DISORDER {
     tag { dataset_name }
 
-    label 'gpu'
+    label 'cpu'
 
     publishDir "results/metapredict", mode: 'copy'
 
@@ -26,7 +26,6 @@ process METAPREDICT_DISORDER {
     # source ~/miniconda3/etc/profile.d/conda.sh
     # conda activate metapredict
 
-    nvidia-smi
 
     metapredict-predict-disorder \
         -o ${dataset_name}_metapredict.csv \

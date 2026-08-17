@@ -6,7 +6,7 @@ nextflow.enable.dsl=2
 process PSAURON_RUN {
     tag { dataset_name }
 
-    label 'gpu'
+    label 'cpu'
    
     publishDir "results/psauron", mode: 'copy'
 
@@ -23,7 +23,6 @@ process PSAURON_RUN {
 
     # module load cuda/13.0.2
 
-    nvidia-smi
 
     psauron \
         -i ${fasta_file} \
