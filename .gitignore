@@ -23,6 +23,7 @@ dag*
 *.dot
 nextflow
 *.html
+*.log
 
 # production / build files
 inputs/
