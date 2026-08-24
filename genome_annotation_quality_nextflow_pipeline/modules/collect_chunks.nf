@@ -17,8 +17,7 @@ process COLLECT_CHUNKS {
     script:
     """
     mkdir -p ${dataset_name}_all_predictions
-    for d in ${pred_dirs}; do
-        cp -r \$d/* ${dataset_name}_all_predictions/
-    done
+    printf '%s\\n' ${pred_dirs} | xargs -P 8 -I{} cp -r {}/. ${dataset_name}_all_predictions/
     """
+
 }
