@@ -128,8 +128,8 @@ workflow {
         .join(metapredict_plot_ch, by: 0)
         .join(psauron_plot_ch, by: 0)
 
-    if ( params.run_interpro != false ) {
-        report_ch = report_ch
+    if ( params.run_interpro.toString().toLowerCase() != 'false' ) {
+	report_ch = report_ch
             .join(interpro_plot_ch, by: 0)
             .map { dataset_name, plddt_png, metapredict_pngs, psauron_pngs,
                    interpro_bar_png, interpro_dist_png, interpro_tsv ->
@@ -159,7 +159,7 @@ workflow {
     // Two process variants because the IPR column is only computable when
     // the InterPro branch ran.
 
-    if ( params.run_interpro != false ) {
+    if ( params.run_interpro.toString().toLowerCase() != 'false' ) {
         summary_ch = pkl_ch
             .join(metapredict_ch, by: 0)
             .join(psauron_ch, by: 0)
