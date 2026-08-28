@@ -60,7 +60,7 @@ workflow {
 
     // ================= INTERPRO BRANCH (optional) ================= //
 
-    if ( params.run_interpro instanceof String ) {
+    if ( params.run_interpro instanceof String && !(params.run_interpro.toLowerCase() in ['true', 'false']) ) {
 
         // User supplied a pre-existing XML — plot only, paired with the
         // dataset's own FASTA so the new script can compute totals.
@@ -75,8 +75,7 @@ workflow {
             }
         interpro_plot_ch = PLOT_INTERPRO(interpro_inputs_ch)
 
-    } else if ( params.run_interpro == true ) {
-
+     } else if ( params.run_interpro.toString().toLowerCase() == 'true' ) {
         // Full branch — split into the same number of chunks Protenix
         // ended up with, so both branches parallelize the same way.
         protenix_chunk_count_ch = chunks_ch
