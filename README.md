@@ -75,11 +75,14 @@ genome-quality metrics:
   typically show a heavy excess of low-coverage proteins relative to
   well-annotated reference organisms.
 
-The InterProScan branch is **optional** and is enabled with
-`--run_interpro true`. Because InterProScan is computationally expensive,
-the pipeline parallelises it by chunking the input FASTA into
-`--ipr_chunks` pieces (default: 24), running each chunk independently,
-and concatenating the per-chunk XML/TSV outputs before plotting.
+The InterProScan branch is **off by default** and is enabled with
+`--run_interpro true` (see [Choosing which branches run](#choosing-which-branches-run)).
+Because InterProScan is computationally expensive, the pipeline
+parallelises it by chunking the input FASTA, running each chunk
+independently, and concatenating the per-chunk XML/TSV outputs before
+plotting. The number of chunks matches however many chunks the Protenix
+branch produced (set by `--chunk_size`); if Protenix is switched off,
+it is the FASTA's sequence count divided by `--chunk_size`, rounded up.
 
 Chunking uses greedy longest-processing-time-first (LPT) bin-packing
 (`bin/balance_chunks.sh`): sequences are sorted by length descending and
@@ -88,8 +91,8 @@ residue count. This keeps per-chunk runtime balanced even when large
 multi-domain genes are clustered together in the input FASTA (naive
 sequential N-sequences-per-chunk splitting can leave one chunk with
 several giant outliers while others sit mostly idle). The assignment is
-deterministic — the same input and `--ipr_chunks` value always produce
-the same chunks.
+deterministic — the same input and chunk count always produce the same
+chunks.
 
 
 
@@ -102,26 +105,51 @@ to construct the plots. This is intended for downstream tabular
 aggregation — concatenating the summary TSVs across many runs gives a
 single table comparing all queries on the same metrics.
 
-The TSV always carries the same column schema. When the InterProScan
-branch is disabled the `ipr_hit_pct` column is left blank rather than
-removed, so the layout is stable across runs.
+The TSV always carries the same column schema. Columns for any branch
+that was switched off are left blank rather than removed, so the layout
+is stable across runs.
 
 | Column                 | Source         | Description                                                                                       |
 |------------------------|----------------|---------------------------------------------------------------------------------------------------|
 | `dataset`              | run parameter  | Dataset identifier (the FASTA basename)                                                           |
-| `total_proteins`       | pLDDT PKL      | Number of proteins for which a mean pLDDT was computed                                            |
+| `total_proteins`       | pLDDT PKL / FASTA | Number of proteins for which a mean pLDDT was computed; if Protenix is off, the number of sequences in the input FASTA |
 | `prop_ge_70`           | Protenix       | Fraction of proteins with mean pLDDT ≥ 70 (y-axis of the GMM scatter plot)                        |
 | `gmm_upper_prop`       | Protenix       | Weight of the upper component of a 2-component GMM fitted to the pLDDT distribution, with guided initialisation from the reference species (x-axis of the GMM scatter plot) |
 | `disorder_prop_gt_0p5` | Metapredict    | Proportion of proteins with mean disorder score > 0.5                                             |
 | `psauron_high_pct`     | PSAURON        | Percentage of proteins with `in-frame_score` ≥ 0.9 (the "High" bar of the PSAURON plot)           |
 | `ipr_hit_pct`          | InterProScan   | Percentage of proteins with at least one IPR-bearing hit (the "any IPR hit" total from the InterPro coverage plot). Blank if `--run_interpro` is `false`. |
 
-Two near-identical Nextflow process variants implement this stage —
-`BUILD_SUMMARY_TSV_WITH_IPR` when the InterPro branch ran, and
-`BUILD_SUMMARY_TSV` otherwise. Both invoke `bin/build_summary_tsv.py`
-with different command-line flags; the duplication is in the Nextflow
-process declarations only because DSL2 does not cleanly support
-optional `path` inputs.
+A single `BUILD_SUMMARY_TSV` process implements this stage. Because DSL2
+does not cleanly support optional `path` inputs, `main.nf` passes a
+placeholder file from `assets/` (`NO_FILE_PLDDT`, `NO_FILE_METAPREDICT`,
+`NO_FILE_PSAURON`, `NO_FILE_IPR_XML`) for each branch that did not run,
+and the process leaves the matching flag off the
+`bin/build_summary_tsv.py` command line. The same mechanism lets
+`PLOT_PLDDT` run without Metapredict; in that case it skips only the
+disorder-coloured GMM scatter plot.
+
+
+## Choosing which branches run
+
+Each of the four analysis branches can be switched on or off
+independently. At least one must be on; the pipeline stops with an error
+if all four are off. The PDF report and summary TSV only include the
+branches that ran.
+
+| Parameter           | Default | Branch                                              |
+|---------------------|---------|-----------------------------------------------------|
+| `--run_protenix`    | `true`  | Protenix structure prediction and pLDDT plots       |
+| `--run_metapredict` | `true`  | Metapredict disorder prediction and plots           |
+| `--run_psauron`     | `true`  | PSAURON scoring and plots                           |
+| `--run_interpro`    | `false` | InterProScan. `true` runs it; a path to an InterProScan XML file plots that XML instead |
+
+Values are case-insensitive (`true`/`false`, `yes`/`no`, `1`/`0`).
+For example, to skip the GPU-heavy Protenix step and run only the
+sequence-based branches plus InterProScan:
+
+```bash
+nextflow run main.nf -profile singularity_slurm --fasta example.fasta --run_protenix false --run_interpro true --interpro_data /path/to/interpro_data
+```
 
 
 
@@ -240,7 +268,7 @@ nextflow run main.nf -profile slurm_local --fasta example.fasta --chunk_size 100
 If using InterProScan, please specify the path to your InterProScan data directory in the singularity.config file before running the pipeline. (or as a parameter `--interpro_data /path/to/interpro_data`) For example:
 
 ```bash
-nextflow run main.nf -profile slurm_local --fasta example.fasta --chunk_size 100 --singularity_image_dir /path/to/singularity_images --use_interpro true --interpro_data /path/to/interpro_data/interproscan-5.77-108.0/data/
+nextflow run main.nf -profile slurm_local --fasta example.fasta --chunk_size 100 --singularity_image_dir /path/to/singularity_images --run_interpro true --interpro_data /path/to/interpro_data/interproscan-5.77-108.0/data/
 ```
 
 - `--fasta` : Path to input FASTA file  
@@ -248,6 +276,9 @@ nextflow run main.nf -profile slurm_local --fasta example.fasta --chunk_size 100
 - `--singularity_image_dir` : Path to directory containing  
 Singularity images (optional if set in config)
 `--protenix_cahce `: Path to Protenix cache directory (optional, can also be set via nextflow.config)
+`--run_protenix` : Run the Protenix branch (optional, default: true)
+`--run_metapredict` : Run the Metapredict branch (optional, default: true)
+`--run_psauron` : Run the PSAURON branch (optional, default: true)
 `--run_interpro` : Enable InterPro branch. `true` = run InterProScan; `/path/to/x.xml` = plot only (optional, default: false)
 `--interpro_data` : Path to InterProScan data directory (optional, can also be set via nextflow.config)
 

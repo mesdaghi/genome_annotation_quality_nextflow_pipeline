@@ -17,16 +17,19 @@ numbers shown on the pipeline's plots:
     ipr_hit_pct          — % of proteins with at least one InterProScan
                            IPR hit (InterPro branch — left-hand bar)
 
-If --ipr-xml/--ipr-fasta are not supplied, ipr_hit_pct is left empty
-(the column is still emitted so downstream parsers see a stable schema).
+Every branch is optional: any metric whose inputs are not supplied is
+left empty (the column is still emitted so downstream parsers see a
+stable schema). total_proteins comes from the pLDDT PKL when it is given,
+otherwise from counting the records in --fasta.
 
 Usage:
     python3 build_summary_tsv.py \\
         --name DATASET \\
-        --plddt-pkl plddt_all_values_DATASET.pkl \\
-        --plddt-reference-csv reference/plddt_model_organisms.csv \\
-        --metapredict-csv DATASET_metapredict.csv \\
-        --psauron-csv DATASET_psauron.csv \\
+        [--fasta DATASET.fasta] \\
+        [--plddt-pkl plddt_all_values_DATASET.pkl \\
+         --plddt-reference-csv reference/plddt_model_organisms.csv] \\
+        [--metapredict-csv DATASET_metapredict.csv] \\
+        [--psauron-csv DATASET_psauron.csv] \\
         [--ipr-fasta DATASET.fasta --ipr-xml DATASET.xml \\
          --plot-interpro-dir bin] \\
         --out DATASET_summary.tsv
@@ -169,6 +172,12 @@ def compute_psauron_high_pct(psauron_csv: Path) -> float:
     return round(float((scores >= 0.9).mean()) * 100, 3)
 
 
+def count_fasta_records(fasta_path: Path) -> int:
+    """Number of '>' header lines in a FASTA file."""
+    with open(fasta_path) as fh:
+        return sum(1 for line in fh if line.startswith(">"))
+
+
 def compute_ipr_hit_pct(fasta_path: Path, xml_path: Path,
                         plot_interpro_dir: Path) -> float:
     """% of FASTA proteins with at least one IPR-bearing match.
@@ -200,18 +209,25 @@ def main():
     )
     ap.add_argument("--name", required=True,
                     help="Dataset name (e.g. the query identifier)")
-    ap.add_argument("--plddt-pkl", required=True, type=Path,
-                    help="Path to plddt_all_values_<dataset>.pkl")
-    ap.add_argument("--plddt-reference-csv", required=True, type=Path,
+    ap.add_argument("--fasta", type=Path, default=None,
+                    help="Query FASTA; used for total_proteins when the "
+                         "pLDDT branch did not run")
+    ap.add_argument("--plddt-pkl", type=Path, default=None,
+                    help="Path to plddt_all_values_<dataset>.pkl (only "
+                         "needed if the Protenix branch ran)")
+    ap.add_argument("--plddt-reference-csv", type=Path, default=None,
                     help="Path to reference/plddt_model_organisms.csv "
-                         "(needed for guided GMM init)")
-    ap.add_argument("--psauron-csv", required=True, type=Path,
+                         "(needed for guided GMM init; required with "
+                         "--plddt-pkl)")
+    ap.add_argument("--psauron-csv", type=Path, default=None,
                     help="Path to the query psauron CSV (with the 2-line "
-                         "header that plot_psauron_distribution.py skips)")
-    ap.add_argument("--metapredict-csv", required=True, type=Path,
+                         "header that plot_psauron_distribution.py skips; "
+                         "only needed if the psauron branch ran)")
+    ap.add_argument("--metapredict-csv", type=Path, default=None,
                     help="Path to the query metapredict CSV (per-row "
                          "per-residue disorder scores from "
-                         "METAPREDICT_DISORDER)")
+                         "METAPREDICT_DISORDER; only needed if the "
+                         "metapredict branch ran)")
     ap.add_argument("--ipr-fasta", type=Path, default=None,
                     help="Query FASTA (only needed if InterPro branch ran)")
     ap.add_argument("--ipr-xml", type=Path, default=None,
@@ -226,22 +242,39 @@ def main():
 
     print(f"=== build_summary_tsv :: {args.name} ===")
 
-    # pLDDT branch
-    print("\npLDDT metrics:")
-    plddt = compute_plddt_metrics(args.plddt_pkl, args.plddt_reference_csv)
-    print(f"  total_proteins = {plddt['total_proteins']:,}")
-    print(f"  prop_ge_70     = {plddt['prop_ge_70']}")
-    print(f"  gmm_upper_prop = {plddt['gmm_upper_prop']}")
+    # pLDDT branch (optional)
+    if args.plddt_pkl:
+        if args.plddt_reference_csv is None:
+            sys.exit("--plddt-reference-csv is required when --plddt-pkl is given")
+        print("\npLDDT metrics:")
+        plddt = compute_plddt_metrics(args.plddt_pkl, args.plddt_reference_csv)
+        print(f"  total_proteins = {plddt['total_proteins']:,}")
+        print(f"  prop_ge_70     = {plddt['prop_ge_70']}")
+        print(f"  gmm_upper_prop = {plddt['gmm_upper_prop']}")
+    else:
+        print("\npLDDT metrics: skipped (no PKL provided)")
+        plddt = {"total_proteins": "", "prop_ge_70": "", "gmm_upper_prop": ""}
+        if args.fasta:
+            plddt["total_proteins"] = count_fasta_records(args.fasta)
+            print(f"  total_proteins = {plddt['total_proteins']:,} (from FASTA)")
 
-    # psauron branch
-    print("\npsauron metric:")
-    psauron_high_pct = compute_psauron_high_pct(args.psauron_csv)
-    print(f"  psauron_high_pct = {psauron_high_pct}")
+    # psauron branch (optional)
+    if args.psauron_csv:
+        print("\npsauron metric:")
+        psauron_high_pct = compute_psauron_high_pct(args.psauron_csv)
+        print(f"  psauron_high_pct = {psauron_high_pct}")
+    else:
+        print("\npsauron metric: skipped (no CSV provided)")
+        psauron_high_pct = ""
 
-    # metapredict branch
-    print("\nmetapredict metric:")
-    disorder_prop_gt_0p5 = compute_disorder_prop_gt_0p5(args.metapredict_csv)
-    print(f"  disorder_prop_gt_0p5 = {disorder_prop_gt_0p5}")
+    # metapredict branch (optional)
+    if args.metapredict_csv:
+        print("\nmetapredict metric:")
+        disorder_prop_gt_0p5 = compute_disorder_prop_gt_0p5(args.metapredict_csv)
+        print(f"  disorder_prop_gt_0p5 = {disorder_prop_gt_0p5}")
+    else:
+        print("\nmetapredict metric: skipped (no CSV provided)")
+        disorder_prop_gt_0p5 = ""
 
     # InterPro branch (optional)
     has_ipr_inputs = bool(args.ipr_fasta) and bool(args.ipr_xml)
