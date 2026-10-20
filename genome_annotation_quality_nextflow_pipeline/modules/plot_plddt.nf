@@ -17,9 +17,12 @@ process PLOT_PLDDT {
     tuple val(dataset_name), path("plddt_*_${dataset_name}.png")
 
     script:
+    // metapredict_csv is a NO_FILE_* placeholder when the metapredict
+    // branch is disabled; plot_plddt.py then skips the disorder scatter.
+    def disorder_arg = metapredict_csv.name.startsWith('NO_FILE') ? '' : metapredict_csv
     """
     export MPLCONFIGDIR=\$(mktemp -d)
     
-    python3 ${projectDir}/bin/plot_plddt.py ${dataset_name} ${metapredict_csv}
+    python3 ${projectDir}/bin/plot_plddt.py ${dataset_name} ${disorder_arg}
     """
 }

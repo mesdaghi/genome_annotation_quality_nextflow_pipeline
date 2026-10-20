@@ -17,50 +17,121 @@ include { CHUNK_IPR } from './modules/chunk_ipr.nf'
 include { INTERPROSCAN } from './modules/interproscan.nf'
 include { CONCAT_IPR } from './modules/concat_ipr.nf'
 include { PLOT_INTERPRO } from './modules/plot_interpro.nf'
-include { BUILD_SUMMARY_TSV; BUILD_SUMMARY_TSV_WITH_IPR } from './modules/build_summary_tsv.nf'
+include { BUILD_SUMMARY_TSV } from './modules/build_summary_tsv.nf'
+
+
+// ==================== Branch switches ==================== //
+// Params given on the command line may arrive as a String ('false') or a
+// Boolean (false) depending on the Nextflow version, so always compare
+// the lower-cased string form rather than the raw value.
+
+def isOn(value) {
+    return value.toString().trim().toLowerCase() in ['true', 'yes', '1']
+}
+
+def isOff(value) {
+    return value == null || value.toString().trim().toLowerCase() in ['false', 'no', '0', '']
+}
+
+// run_interpro is three-way: off, run InterProScan, or plot a supplied XML
+def interproMode(value) {
+    if ( isOff(value) ) return 'off'
+    if ( isOn(value) )  return 'run'
+    return 'xml'
+}
+
+// Placeholder files stand in for the outputs of disabled branches, so the
+// downstream processes keep a fixed input shape. Each has its own name so
+// that two placeholders never collide when staged into the same task.
+def placeholder(name) {
+    return file("${projectDir}/assets/${name}", checkIfExists: true)
+}
 
 
 workflow {
+
+    def run_protenix    = isOn(params.run_protenix)
+    def run_metapredict = isOn(params.run_metapredict)
+    def run_psauron     = isOn(params.run_psauron)
+    def interpro_mode   = interproMode(params.run_interpro)
+
+    if ( !run_protenix && !run_metapredict && !run_psauron && interpro_mode == 'off' ) {
+        error "All analysis branches are disabled. Enable at least one of " +
+              "--run_protenix, --run_metapredict, --run_psauron or --run_interpro."
+    }
+
+    log.info """\
+        Branches enabled:
+          protenix    : ${run_protenix}
+          metapredict : ${run_metapredict}
+          psauron     : ${run_psauron}
+          interpro    : ${interpro_mode}
+        """.stripIndent()
 
     fasta_ch = Channel
         .fromPath(params.fasta, checkIfExists: true)
         .map { fasta -> tuple(fasta, fasta.baseName) }
 
-    // ================= PROTENIX BRANCH ================= //
+    // Each plotting branch adds (dataset_name, order, [pngs]) to this list.
+    // `order` keeps the report's section order fixed no matter which
+    // branches ran or which finished first.
+    def report_parts = []
 
-    json_ch = FASTA_TO_JSON(fasta_ch)
-
-    split_ch = SPLIT_JSON(json_ch)
-    chunks_ch = split_ch.transpose()
-
-
-    pred_ch = PROTENIX_PREDICT(chunks_ch)
-
-    collected_ch = COLLECT_CHUNKS(pred_ch.groupTuple(by: 0))
-
-    pkl_ch = PROCESS_MODELS(collected_ch)
-
-    // ================= METAPREDICT BRANCH ================= //
+    // ================= METAPREDICT BRANCH (optional) ================= //
     // (run first so its CSV is available for the disorder-coloured
     //  GMM scatter inside PLOT_PLDDT)
 
-    metapredict_ch = METAPREDICT_DISORDER(fasta_ch)
+    if ( run_metapredict ) {
+        metapredict_ch      = METAPREDICT_DISORDER(fasta_ch)
+        metapredict_plot_ch = PLOT_METAPREDICT(metapredict_ch)
+    } else {
+        metapredict_ch      = Channel.empty()
+        metapredict_plot_ch = Channel.empty()
+    }
 
-    metapredict_plot_ch = PLOT_METAPREDICT(metapredict_ch)
+    // ================= PROTENIX BRANCH (optional) ================= //
 
-    // PLOT_PLDDT consumes both the pLDDT PKL and the metapredict CSV
-    plddt_plot_ch = PLOT_PLDDT(pkl_ch.join(metapredict_ch, by: 0))
+    if ( run_protenix ) {
+        json_ch = FASTA_TO_JSON(fasta_ch)
 
-    // ================= PSAURON BRANCH ================= //
+        split_ch  = SPLIT_JSON(json_ch)
+        chunks_ch = split_ch.transpose()
 
-    psauron_ch = PSAURON_RUN(fasta_ch)
+        pred_ch = PROTENIX_PREDICT(chunks_ch)
 
-    psauron_plot_ch = PLOT_PSAURON(psauron_ch)
+        collected_ch = COLLECT_CHUNKS(pred_ch.groupTuple(by: 0))
 
+        pkl_ch = PROCESS_MODELS(collected_ch)
+
+        // PLOT_PLDDT takes the metapredict CSV for the disorder-coloured
+        // scatter. Without metapredict it gets a placeholder and skips
+        // just that one plot.
+        if ( run_metapredict ) {
+            plddt_input_ch = pkl_ch.join(metapredict_ch, by: 0)
+        } else {
+            def no_metapredict = placeholder('NO_FILE_METAPREDICT')
+            plddt_input_ch = pkl_ch.map { dataset_name, pkl -> tuple(dataset_name, pkl, no_metapredict) }
+        }
+        plddt_plot_ch = PLOT_PLDDT(plddt_input_ch)
+    } else {
+        chunks_ch     = Channel.empty()
+        pkl_ch        = Channel.empty()
+        plddt_plot_ch = Channel.empty()
+    }
+
+    // ================= PSAURON BRANCH (optional) ================= //
+
+    if ( run_psauron ) {
+        psauron_ch      = PSAURON_RUN(fasta_ch)
+        psauron_plot_ch = PLOT_PSAURON(psauron_ch)
+    } else {
+        psauron_ch      = Channel.empty()
+        psauron_plot_ch = Channel.empty()
+    }
 
     // ================= INTERPRO BRANCH (optional) ================= //
 
-    if ( params.run_interpro instanceof String && !(params.run_interpro.toLowerCase() in ['true', 'false']) ) {
+    if ( interpro_mode == 'xml' ) {
 
         // User supplied a pre-existing XML — plot only, paired with the
         // dataset's own FASTA so the new script can compute totals.
@@ -75,17 +146,29 @@ workflow {
             }
         interpro_plot_ch = PLOT_INTERPRO(interpro_inputs_ch)
 
-     } else if ( params.run_interpro.toString().toLowerCase() == 'true' ) {
-        // Full branch — split into the same number of chunks Protenix
-        // ended up with, so both branches parallelize the same way.
-        protenix_chunk_count_ch = chunks_ch
-            .map { dataset_name, chunk_file -> tuple(dataset_name, 1) }
-            .groupTuple(by: 0)
-            .map { dataset_name, ones -> tuple(dataset_name, ones.size()) }
+    } else if ( interpro_mode == 'run' ) {
+
+        if ( run_protenix ) {
+            // Split into the same number of chunks Protenix ended up with,
+            // so both branches parallelize the same way.
+            ipr_chunk_count_ch = chunks_ch
+                .map { dataset_name, chunk_file -> tuple(dataset_name, 1) }
+                .groupTuple(by: 0)
+                .map { dataset_name, ones -> tuple(dataset_name, ones.size()) }
+        } else {
+            // No Protenix chunks to mirror, so derive the count from the
+            // FASTA using the same chunk_size Protenix would have used.
+            ipr_chunk_count_ch = fasta_ch
+                .map { fasta_file, dataset_name ->
+                    def n_seqs = fasta_file.countFasta()
+                    def n_chunks = Math.max(1, (int) Math.ceil(n_seqs / (params.chunk_size as double)))
+                    tuple(dataset_name, n_chunks)
+                }
+        }
 
         chunk_ipr_input_ch = fasta_ch
             .map { fasta_file, dataset_name -> tuple(dataset_name, fasta_file) }
-            .join(protenix_chunk_count_ch, by: 0)
+            .join(ipr_chunk_count_ch, by: 0)
             .map { dataset_name, fasta_file, n_chunks -> tuple(fasta_file, dataset_name, n_chunks) }
 
         ipr_chunks_ch = CHUNK_IPR(chunk_ipr_input_ch).transpose()
@@ -115,64 +198,89 @@ workflow {
 
     } else {
 
-        // Disabled — empty channels so the report and summary joins are unaffected
         interpro_plot_ch   = Channel.empty()
         interpro_inputs_ch = Channel.empty()
 
     }
 
     // ================= REPORT STAGE ================= //
-    // Collect all PNGs per dataset_name into a single list, then generate report
+    // Gather the PNGs from whichever branches ran, keep them in the usual
+    // section order (pLDDT, metapredict, psauron, InterPro) and build one
+    // PDF per dataset.
 
-    report_ch = plddt_plot_ch
-        .join(metapredict_plot_ch, by: 0)
-        .join(psauron_plot_ch, by: 0)
+    def asList = { x -> x instanceof List ? x : [x] }
 
-    if ( params.run_interpro.toString().toLowerCase() != 'false' ) {
-	report_ch = report_ch
-            .join(interpro_plot_ch, by: 0)
-            .map { dataset_name, plddt_png, metapredict_pngs, psauron_pngs,
-                   interpro_bar_png, interpro_dist_png, interpro_tsv ->
-                def pngs = []
-                pngs += (plddt_png instanceof List ? plddt_png : [plddt_png])
-                pngs += (metapredict_pngs instanceof List ? metapredict_pngs : [metapredict_pngs])
-                pngs += (psauron_pngs instanceof List ? psauron_pngs : [psauron_pngs])
-                // Both interpro PNGs go into the report; the TSV is published
-                // to results/interpro_plots but not embedded.
-                pngs += [interpro_bar_png, interpro_dist_png]
-                tuple(dataset_name, pngs)
-            }
-    } else {
-        report_ch = report_ch
-            .map { dataset_name, plddt_png, metapredict_pngs, psauron_pngs ->
-                def pngs = []
-                pngs += (plddt_png instanceof List ? plddt_png : [plddt_png])
-                pngs += (metapredict_pngs instanceof List ? metapredict_pngs : [metapredict_pngs])
-                pngs += (psauron_pngs instanceof List ? psauron_pngs : [psauron_pngs])
-                tuple(dataset_name, pngs)
-            }
+    if ( run_protenix ) {
+        report_parts << plddt_plot_ch.map { dataset_name, pngs -> tuple(dataset_name, 1, asList(pngs)) }
     }
+    if ( run_metapredict ) {
+        report_parts << metapredict_plot_ch.map { dataset_name, pngs -> tuple(dataset_name, 2, asList(pngs)) }
+    }
+    if ( run_psauron ) {
+        report_parts << psauron_plot_ch.map { dataset_name, pngs -> tuple(dataset_name, 3, asList(pngs)) }
+    }
+    if ( interpro_mode != 'off' ) {
+        // Both InterPro PNGs go into the report; the TSV is published to
+        // results/interpro_plots but not embedded.
+        report_parts << interpro_plot_ch.map { dataset_name, bar_png, dist_png, ipr_tsv ->
+            tuple(dataset_name, 4, [bar_png, dist_png])
+        }
+    }
+
+    def n_report_parts = report_parts.size()
+
+    report_ch = Channel.empty()
+        .mix(*report_parts)
+        // Every enabled branch emits exactly one tuple per dataset, so
+        // `size` lets each dataset's report start as soon as it is ready.
+        .groupTuple(by: 0, size: n_report_parts)
+        .map { dataset_name, orders, png_lists ->
+            def pngs = [orders, png_lists].transpose()
+                .sort { it[0] }
+                .collectMany { it[1] }
+            tuple(dataset_name, pngs)
+        }
+
     GENERATE_REPORT(report_ch)
 
     // ================= SUMMARY TSV STAGE ================= //
-    // One-row TSV per dataset with the five headline plot metrics.
-    // Two process variants because the IPR column is only computable when
-    // the InterPro branch ran.
+    // One-row TSV per dataset with the headline plot metrics. Columns for
+    // branches that did not run are left blank so the schema stays fixed.
 
-    if ( params.run_interpro.toString().toLowerCase() != 'false' ) {
-        summary_ch = pkl_ch
-            .join(metapredict_ch, by: 0)
-            .join(psauron_ch, by: 0)
-            .join(interpro_inputs_ch, by: 0)
-            // Resulting tuple: (dataset_name, pkl, metapredict_csv, psauron_csv, fasta, xml)
-        BUILD_SUMMARY_TSV_WITH_IPR(summary_ch)
+    summary_ch = fasta_ch.map { fasta_file, dataset_name -> tuple(dataset_name, fasta_file) }
+
+    if ( run_protenix ) {
+        summary_ch = summary_ch.join(pkl_ch, by: 0)
     } else {
-        summary_ch = pkl_ch
-            .join(metapredict_ch, by: 0)
-            .join(psauron_ch, by: 0)
-            // Resulting tuple: (dataset_name, pkl, metapredict_csv, psauron_csv)
-        BUILD_SUMMARY_TSV(summary_ch)
+        def no_plddt = placeholder('NO_FILE_PLDDT')
+        summary_ch = summary_ch.map { row -> tuple(*row, no_plddt) }
     }
 
-}
+    if ( run_metapredict ) {
+        summary_ch = summary_ch.join(metapredict_ch, by: 0)
+    } else {
+        def no_metapredict = placeholder('NO_FILE_METAPREDICT')
+        summary_ch = summary_ch.map { row -> tuple(*row, no_metapredict) }
+    }
 
+    if ( run_psauron ) {
+        summary_ch = summary_ch.join(psauron_ch, by: 0)
+    } else {
+        def no_psauron = placeholder('NO_FILE_PSAURON')
+        summary_ch = summary_ch.map { row -> tuple(*row, no_psauron) }
+    }
+
+    if ( interpro_mode != 'off' ) {
+        summary_ch = summary_ch.join(
+            interpro_inputs_ch.map { dataset_name, fasta_file, xml -> tuple(dataset_name, xml) },
+            by: 0
+        )
+    } else {
+        def no_ipr = placeholder('NO_FILE_IPR_XML')
+        summary_ch = summary_ch.map { row -> tuple(*row, no_ipr) }
+    }
+
+    // Resulting tuple: (dataset_name, fasta, pkl, metapredict_csv, psauron_csv, xml)
+    BUILD_SUMMARY_TSV(summary_ch)
+
+}
