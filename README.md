@@ -1,6 +1,6 @@
 # GAQA — Genome Annotation Quality Assessment
 
-**GAQA** (pronounced "gah-ka") is a Nextflow pipeline for large-scale
+**GAQA**  is a Nextflow pipeline for large-scale
 protein structure prediction, intrinsic disorder analysis, and genome
 annotation quality assessment using **Protenix**, **Metapredict**,
 **PSAURON**, and **InterProScan**.
