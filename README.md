@@ -1,8 +1,12 @@
-# genome_annotation_quality_nextflow_pipeline
+# GAQA — Genome Annotation Quality Assessment
 
-Nextflow pipeline for large-scale protein structure prediction,
-intrinsic disorder analysis, and genome annotation quality assessment
-using **Protenix**, **Metapredict**, **PSAURON**, and **Interproscan**.
+**GAQA** (pronounced "gah-ka") is a Nextflow pipeline for large-scale
+protein structure prediction, intrinsic disorder analysis, and genome
+annotation quality assessment using **Protenix**, **Metapredict**,
+**PSAURON**, and **InterProScan**.
+
+The code lives in the `genome_annotation_quality_nextflow_pipeline`
+repository, and its container images are named `GAQA_*.sif`.
 
 ------------------------------------------------------------------------
 
@@ -19,6 +23,8 @@ This repository contains a **Nextflow DSL2 pipeline** for:
 - Comparative plotting against reference proteome datasets
 - One-row summary TSV per run, aggregating the headline plot metrics
   across all branches
+- Every analysis branch can be switched on or off independently
+  (see [Choosing which branches run](#choosing-which-branches-run))
 
 The pipeline is designed for HPC environments (SLURM supported)
 and supports GPU acceleration where appropriate.
@@ -155,7 +161,7 @@ nextflow run main.nf -profile singularity_slurm --fasta example.fasta --run_prot
 
 ## Installation Instructions
 
-Follow these steps to install and set up the **Nextflow Genome Annotation Quality Pipeline**:
+Follow these steps to install and set up **GAQA**:
 
 ### 1. Install Nextflow
 
@@ -262,20 +268,20 @@ There are two profiles available for testing:
 2. 'singularity_slurm' — runs the pipeline on an HPC cluster with SLURM, using Singularity containers
 
 ```bash
-nextflow run main.nf -profile slurm_local --fasta example.fasta --chunk_size 100 --singularity_image_dir /path/to/singularity_images
+nextflow run main.nf -profile singularity_slurm --fasta example.fasta --chunk_size 100 --singularity_image_dir /path/to/singularity_images
 
 ```
 If using InterProScan, please specify the path to your InterProScan data directory in the singularity.config file before running the pipeline. (or as a parameter `--interpro_data /path/to/interpro_data`) For example:
 
 ```bash
-nextflow run main.nf -profile slurm_local --fasta example.fasta --chunk_size 100 --singularity_image_dir /path/to/singularity_images --run_interpro true --interpro_data /path/to/interpro_data/interproscan-5.77-108.0/data/
+nextflow run main.nf -profile singularity_slurm --fasta example.fasta --chunk_size 100 --singularity_image_dir /path/to/singularity_images --run_interpro true --interpro_data /path/to/interpro_data/interproscan-5.77-108.0/data/
 ```
 
 - `--fasta` : Path to input FASTA file  
 - `--chunk_size` : Number of sequences per Protenix chunk  
 - `--singularity_image_dir` : Path to directory containing  
 Singularity images (optional if set in config)
-`--protenix_cahce `: Path to Protenix cache directory (optional, can also be set via nextflow.config)
+`--protenix_cache` : Path to Protenix cache directory (optional, can also be set via nextflow.config)
 `--run_protenix` : Run the Protenix branch (optional, default: true)
 `--run_metapredict` : Run the Metapredict branch (optional, default: true)
 `--run_psauron` : Run the PSAURON branch (optional, default: true)
@@ -290,12 +296,14 @@ All output (plots, PKL files, CSVs) will be stored under `results/`.
 ### Notes
 
 - Make sure your environments are accessible on the compute nodes.  
-- Set `PROTENIX_CACHE` before running Protenix predictions.  
+- Set `--protenix_cache` (or `PROTENIX_CACHE`) before running Protenix predictions; not needed with `--run_protenix false`.  
 
 
 ## Features
 
 ### Structure Prediction (Protenix)
+
+- On by default; skip with `--run_protenix false`
 
 - FASTA → Protenix JSON conversion
 - JSON chunk splitting for parallel inference
@@ -303,14 +311,20 @@ All output (plots, PKL files, CSVs) will be stored under `results/`.
 - Automatic model collection and aggregation
 - pLDDT extraction into PKL datasets
 - Distribution plotting vs reference organisms
+- Disorder-coloured GMM scatter when Metapredict also runs (skipped
+  otherwise)
 
 ### Disorder Prediction (Metapredict)
+
+- On by default; skip with `--run_metapredict false`
 
 - GPU-accelerated disorder prediction
 - Automatic overlay vs reference proteome disorder database
 - Histogram and KDE density plots
 
 ### Protein-Coding Quality Assessment (PSAURON)
+
+- On by default; skip with `--run_psauron false`
 
 - GPU-accelerated PSAURON scoring
 - Overlay of new dataset vs precomputed multi-species reference
@@ -319,7 +333,7 @@ All output (plots, PKL files, CSVs) will be stored under `results/`.
 
 ### Functional Domain Annotation (InterProScan)
 
-- Optional, FASTA-driven InterProScan branch (`--run_interpro true`)
+- Off by default; FASTA-driven InterProScan branch enabled with `--run_interpro true`
 - Automatic chunking and parallel execution across HPC compute nodes
 - Concatenation of per-chunk XML/TSV outputs into a single result
 - Per-library coverage bar chart with the query highlighted alongside
@@ -337,7 +351,7 @@ All output (plots, PKL files, CSVs) will be stored under `results/`.
                               FASTA
                 /        |          |          \
                /         |          |           \
-          PROTENIX  METAPREDICT  PSAURON  INTERPROSCAN (optional)
+          PROTENIX  METAPREDICT  PSAURON  INTERPROSCAN
               |          |          |           |
            pLDDT PKL    CSV        CSV       XML / TSV
               |          |          |           |
@@ -349,6 +363,10 @@ All output (plots, PKL files, CSVs) will be stored under `results/`.
                             FINAL REPORT (PDF)
                                   +
                        BUILD_SUMMARY_TSV  →  <dataset>_summary.tsv
+
+Every branch is optional. Protenix, Metapredict and PSAURON run by
+default; InterProScan is off by default. The report and summary TSV
+include only the branches that ran.
 ------------------------------------------------------------------------
 
 ## Requirements
@@ -367,37 +385,70 @@ All output (plots, PKL files, CSVs) will be stored under `results/`.
 ### Basic Run
 
 ```bash
-nextflow run main.nf -profile slurm --fasta after_461.fasta --chunk_size 100
+nextflow run main.nf -profile singularity_slurm --fasta after_461.fasta --chunk_size 100
 ```
+
+`main.nf` is in the `genome_annotation_quality_nextflow_pipeline/`
+subfolder, so run from there or give its full path.
 
 ### Parameters
 
 | Parameter              | Description                                                                       |
 |------------------------|-----------------------------------------------------------------------------------|
-| --chunk_size           | Number of sequences per Protenix chunk                                            |
-| --ipr_chunks           | Number of length-balanced InterProScan chunks (default: 24)                       |
 | --fasta                | Path to input FASTA file                                                          |
-| --run_interpro         | Enable InterPro branch. `true` = run InterProScan; `/path/to/x.xml` = plot only   |
-| --ipr_reference_json   | Path to reference model-organism JSON (default: `bin/ipr_coverage.json`)          |
+| --chunk_size           | Sequences per Protenix chunk (default: 100). Also sets the InterProScan chunk count |
+| --run_protenix         | Run the Protenix branch (default: `true`)                                         |
+| --run_metapredict      | Run the Metapredict branch (default: `true`)                                      |
+| --run_psauron          | Run the PSAURON branch (default: `true`)                                          |
+| --run_interpro         | InterPro branch. `true` = run InterProScan; `/path/to/x.xml` = plot only (default: `false`) |
+| --interpro_data        | Path to InterProScan data directory (needed with `--run_interpro true`)           |
+| --protenix_cache       | Path to Protenix cache directory (needed with Protenix)                           |
+| --singularity_image_dir| Path to the Singularity/Apptainer images                                          |
+| --ipr_reference_json   | Path to reference model-organism JSON (default: `reference/ipr_coverage.json`)    |
+
+### Running a subset of branches
+
+```bash
+# Skip Protenix (the GPU-heavy step); run Metapredict and PSAURON only
+nextflow run main.nf -profile singularity_slurm \
+    --fasta after_461.fasta \
+    --run_protenix false
+
+# PSAURON only
+nextflow run main.nf -profile singularity_slurm \
+    --fasta after_461.fasta \
+    --run_protenix false \
+    --run_metapredict false
+
+# InterProScan only
+nextflow run main.nf -profile singularity_slurm \
+    --fasta after_461.fasta \
+    --run_protenix false \
+    --run_metapredict false \
+    --run_psauron false \
+    --run_interpro true \
+    --interpro_data /path/to/interpro_data
+```
 
 ### Running with the InterProScan branch
 
-The InterProScan branch is opt-in. By default it is disabled.
+The InterProScan branch is opt-in. By default it is disabled. It can be
+combined with any of the other branches.
 
 ```bash
 # Full branch — runs InterProScan from scratch on the input FASTA
-nextflow run main.nf -profile slurm \
+nextflow run main.nf -profile singularity_slurm \
     --fasta after_461.fasta \
     --run_interpro true
 
 # Plot-only — skip the (expensive) InterProScan step and reuse a
 # previously generated XML, paired with the dataset's FASTA
-nextflow run main.nf -profile slurm \
+nextflow run main.nf -profile singularity_slurm \
     --fasta after_461.fasta \
     --run_interpro /path/to/precomputed_interproscan_output.xml
 
 # Override the reference model-organism dataset
-nextflow run main.nf -profile slurm \
+nextflow run main.nf -profile singularity_slurm \
     --fasta after_461.fasta \
     --run_interpro true \
     --ipr_reference_json /path/to/custom_ipr_coverage.json
@@ -411,20 +462,20 @@ nextflow run main.nf -profile slurm \
      ├── <dataset>_report.pdf                   (combined PDF of all plots)
      ├── <dataset>_summary.tsv                  (single-row metrics summary)
      │
-     ├── plots/
-     │    ├── plddt_hist_<dataset>.png
-     │    ├── plddt_density_statsmodels_<dataset>.png
-     │    └── plddt_density_scipy_<dataset>.png
+     ├── plots/                                (only if --run_protenix)
+     │    ├── plddt_density_scipy_<dataset>.png
+     │    ├── plddt_gmm_scatter_<dataset>.png
+     │    └── plddt_gmm_scatter_disorder_<dataset>.png   (also needs --run_metapredict)
      │
-     ├── metapredict_plots/
-     │    ├── <dataset>_mean_disorder_hist.png
-     │    ├── <dataset>_mean_disorder_density_statsmodels.png
+     ├── metapredict/                          (only if --run_metapredict)
+     │    └── <dataset>_metapredict.csv
+     ├── metapredict_plots/                    (only if --run_metapredict)
      │    └── <dataset>_mean_disorder_density_scipy.png
      │
-     ├── psauron_plots/
-     │    ├── psauron_hist.png
-     │    ├── psauron_density_statsmodels.png
-     │    └── psauron_density_scipy.png
+     ├── psauron/                              (only if --run_psauron)
+     │    └── <dataset>_psauron.csv
+     ├── psauron_plots/                        (only if --run_psauron)
+     │    └── psauron_categorical_distribution.png
      │
      └── interpro_plots/                       (only if --run_interpro)
           ├── interpro_domain_coverage.png
@@ -523,21 +574,21 @@ residues divided by the protein length to give a score between 0 and 1.
 ------------------------------------------------------------------------
 ## Reference Datasets
 ### Protein Model Reference  
-    bin/plddt_model_organisms.csv
+    reference/plddt_model_organisms.csv
 ### Disorder Reference
 
-    bin/combined_proteome_disorder.pkl
+    reference/combined_proteome_disorder.pkl
 
 ### PSAURON Reference
 
-    bin/combined_psauron_results.csv
+    reference/combined_psauron_results.csv
 
 Precomputed multi-species PSAURON score distribution used as background
 for comparative overlay plots.
 
 ### InterPro Reference
 
-    bin/ipr_coverage.json
+    reference/ipr_coverage.json
 
 Precomputed InterProScan coverage data for five reference model
 organisms — *Arabidopsis thaliana*, *Drosophila melanogaster*,
@@ -560,7 +611,7 @@ described in `bin/ipr_coverage.README.md`.
 | PROTENIX_PREDICT           | Runs Protenix inference (GPU)                                     |
 | COLLECT_CHUNKS             | Merges chunk prediction outputs                                   |
 | PROCESS_MODELS             | Extracts pLDDT values into PKL                                    |
-| PLOT_PLDDT                 | Generates structure confidence plots                              |
+| PLOT_PLDDT                 | Generates structure confidence plots (disorder scatter needs Metapredict) |
 | METAPREDICT_DISORDER       | Runs disorder prediction (GPU)                                    |
 | PLOT_METAPREDICT           | Generates disorder comparison plots                               |
 | PSAURON_RUN                | Runs PSAURON scoring (GPU)                                        |
@@ -570,8 +621,7 @@ described in `bin/ipr_coverage.README.md`.
 | CONCAT_IPR                 | Merges per-chunk XML/TSV results                                  |
 | PLOT_INTERPRO              | Generates InterPro coverage comparison plots                      |
 | GENERATE_REPORT            | Combines per-branch PNGs into the final PDF report                |
-| BUILD_SUMMARY_TSV          | Writes the single-row summary TSV (when InterPro is disabled)     |
-| BUILD_SUMMARY_TSV_WITH_IPR | Writes the single-row summary TSV including `ipr_hit_pct`         |
+| BUILD_SUMMARY_TSV          | Writes the single-row summary TSV; columns for skipped branches are blank |
 
 ------------------------------------------------------------------------
 
