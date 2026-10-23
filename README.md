@@ -1,8 +1,12 @@
-# genome_annotation_quality_nextflow_pipeline
+# GAQA — Genome Annotation Quality Assessment
 
-Nextflow pipeline for large-scale protein structure prediction,
-intrinsic disorder analysis, and genome annotation quality assessment
-using **Protenix**, **Metapredict**, **PSAURON**, and **Interproscan**.
+**GAQA** (pronounced "gah-ka") is a Nextflow pipeline for large-scale
+protein structure prediction, intrinsic disorder analysis, and genome
+annotation quality assessment using **Protenix**, **Metapredict**,
+**PSAURON**, and **InterProScan**.
+
+The code lives in the `genome_annotation_quality_nextflow_pipeline`
+repository, and its container images are named `GAQA_*.sif`.
 
 ------------------------------------------------------------------------
 
@@ -157,7 +161,7 @@ nextflow run main.nf -profile singularity_slurm --fasta example.fasta --run_prot
 
 ## Installation Instructions
 
-Follow these steps to install and set up the **Nextflow Genome Annotation Quality Pipeline**:
+Follow these steps to install and set up **GAQA**:
 
 ### 1. Install Nextflow
 
