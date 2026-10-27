@@ -25,6 +25,9 @@ This repository contains a **Nextflow DSL2 pipeline** for:
   across all branches
 - Every analysis branch can be switched on or off independently
   (see [Choosing which branches run](#choosing-which-branches-run))
+- Several FASTA files in one run, with a PDF report per input and,
+  optionally, a combined report that puts every input on the same plots
+  (see [Running several FASTA files](#running-several-fasta-files))
 
 The pipeline is designed for HPC environments (SLURM supported)
 and supports GPU acceleration where appropriate.
@@ -104,12 +107,14 @@ chunks.
 
 ## Summary Metrics TSV
 
-In addition to the per-branch plots and the combined PDF report, every
-pipeline run emits a single-row TSV file
+In addition to the per-branch plots and the PDF report, the pipeline
+emits a single-row TSV file for each input
 (`results/<dataset>_summary.tsv`) containing the headline numbers used
 to construct the plots. This is intended for downstream tabular
 aggregation — concatenating the summary TSVs across many runs gives a
-single table comparing all queries on the same metrics.
+single table comparing all queries on the same metrics. With
+`--report combined`, the pipeline does this for you:
+`results/<combined_name>_summary.tsv` has one row per input.
 
 The TSV always carries the same column schema. Columns for any branch
 that was switched off are left blank rather than removed, so the layout
@@ -277,7 +282,9 @@ If using InterProScan, please specify the path to your InterProScan data directo
 nextflow run main.nf -profile singularity_slurm --fasta example.fasta --chunk_size 100 --singularity_image_dir /path/to/singularity_images --run_interpro true --interpro_data /path/to/interpro_data/interproscan-5.77-108.0/data/
 ```
 
-- `--fasta` : Path to input FASTA file  
+- `--fasta` : Input FASTA file(s): a path, a glob (quote it), or a comma-separated list  
+- `--fasta_list` : Text file listing input FASTA files, one per line (optional, instead of or as well as `--fasta`)  
+- `--report` : `separate` (default) = one PDF per input; `combined` = also a combined PDF comparing all inputs  
 - `--chunk_size` : Number of sequences per Protenix chunk  
 - `--singularity_image_dir` : Path to directory containing  
 Singularity images (optional if set in config)
@@ -364,6 +371,11 @@ All output (plots, PKL files, CSVs) will be stored under `results/`.
                                   +
                        BUILD_SUMMARY_TSV  →  <dataset>_summary.tsv
 
+With several input FASTA files, the steps above run once per input.
+With `--report combined`, every input is also drawn on shared plots,
+which are gathered into `<combined_name>_report.pdf`, and the per-input
+summary rows are joined into `<combined_name>_summary.tsv`.
+
 Every branch is optional. Protenix, Metapredict and PSAURON run by
 default; InterProScan is off by default. The report and summary TSV
 include only the branches that ran.
@@ -395,7 +407,10 @@ subfolder, so run from there or give its full path.
 
 | Parameter              | Description                                                                       |
 |------------------------|-----------------------------------------------------------------------------------|
-| --fasta                | Path to input FASTA file                                                          |
+| --fasta                | Input FASTA file(s): a path, a glob (in quotes), or a comma-separated list        |
+| --fasta_list           | Text file with one FASTA path (or glob) per line; `#` lines and blank lines are ignored |
+| --report               | `separate` (default): one PDF per input. `combined`: also one PDF with every input on shared plots |
+| --combined_name        | Name used for the combined outputs (default: `combined`)                          |
 | --chunk_size           | Sequences per Protenix chunk (default: 100). Also sets the InterProScan chunk count |
 | --run_protenix         | Run the Protenix branch (default: `true`)                                         |
 | --run_metapredict      | Run the Metapredict branch (default: `true`)                                      |
@@ -405,6 +420,70 @@ subfolder, so run from there or give its full path.
 | --protenix_cache       | Path to Protenix cache directory (needed with Protenix)                           |
 | --singularity_image_dir| Path to the Singularity/Apptainer images                                          |
 | --ipr_reference_json   | Path to reference model-organism JSON (default: `reference/ipr_coverage.json`)    |
+
+### Running several FASTA files
+
+Give several inputs with `--fasta` (comma-separated, or a quoted glob),
+with `--fasta_list` (a text file, one path per line), or with both;
+a file named twice is only run once.
+
+```bash
+# Comma-separated list
+nextflow run main.nf -profile singularity_slurm \
+    --fasta /data/strainA.faa,/data/strainB.faa,/data/strainC.faa
+
+# Glob (keep the quotes so the shell doesn't expand it)
+nextflow run main.nf -profile singularity_slurm \
+    --fasta "/data/predicted_genes/*.faa"
+
+# List file
+nextflow run main.nf -profile singularity_slurm \
+    --fasta_list inputs.txt
+```
+
+An example `inputs.txt`:
+
+```text
+# one FASTA per line; blank lines and lines starting with # are ignored
+/data/predicted_genes/GCA_000599445.1.faa
+/data/predicted_genes/GCA_900044135.1.faa
+/data/other/strain_x.faa
+```
+
+Relative paths in `--fasta` and `--fasta_list` are resolved from the
+directory you launch the pipeline in, so absolute paths are safest.
+
+Each input is named after its file name without the extension
+(`GCA_000599445.1.faa` → `GCA_000599445.1`), and every output file
+carries that name, so the inputs must have different file names. The
+pipeline stops with an error listing any clashes.
+
+**Reports**
+
+- `--report separate` (default): one `<dataset>_report.pdf` and one
+  `<dataset>_summary.tsv` per input.
+- `--report combined`: the per-input files above, plus
+  `<combined_name>_report.pdf`, in which each plot shows every input
+  together against the reference organisms, and
+  `<combined_name>_summary.tsv`, with one row per input. Set the name
+  with `--combined_name` (default: `combined`).
+
+```bash
+nextflow run main.nf -profile singularity_slurm \
+    --fasta_list inputs.txt \
+    --report combined \
+    --combined_name fusarium_strains
+```
+
+In the combined plots, each input is a coloured line (pLDDT and
+Metapredict densities), a red-ringed labelled point (GMM scatter), or
+its own bar group or violin after the reference species (PSAURON and
+InterPro). Inputs appear in alphabetical order. The pLDDT scatter
+coloured by disorder needs Metapredict to have run.
+
+`--run_interpro /path/to/x.xml` (plot a supplied XML) works with a
+single input only; use `--run_interpro true` to run InterProScan on
+several inputs.
 
 ### Running a subset of branches
 
@@ -459,8 +538,20 @@ nextflow run main.nf -profile singularity_slurm \
 ## Output Structure
 
     results/
-     ├── <dataset>_report.pdf                   (combined PDF of all plots)
-     ├── <dataset>_summary.tsv                  (single-row metrics summary)
+     ├── <dataset>_report.pdf                   (PDF of all plots, one per input)
+     ├── <dataset>_summary.tsv                  (single-row metrics summary, one per input)
+     │
+     ├── <combined_name>_report.pdf             (only with --report combined)
+     ├── <combined_name>_summary.tsv            (only with --report combined; one row per input)
+     ├── combined_plots/                        (only with --report combined)
+     │    ├── <combined_name>_plddt_density_scipy.png
+     │    ├── <combined_name>_plddt_gmm_scatter.png
+     │    ├── <combined_name>_plddt_gmm_scatter_disorder.png
+     │    ├── <combined_name>_metapredict_mean_disorder_density_scipy.png
+     │    ├── <combined_name>_psauron_categorical_distribution.png
+     │    ├── <combined_name>_interpro_domain_coverage.png
+     │    ├── <combined_name>_interpro_merged_coverage_distribution.png
+     │    └── <combined_name>_interpro_summary.tsv
      │
      ├── plots/                                (only if --run_protenix)
      │    ├── plddt_density_scipy_<dataset>.png
@@ -470,17 +561,20 @@ nextflow run main.nf -profile singularity_slurm \
      ├── metapredict/                          (only if --run_metapredict)
      │    └── <dataset>_metapredict.csv
      ├── metapredict_plots/                    (only if --run_metapredict)
-     │    └── <dataset>_mean_disorder_density_scipy.png
+     │    └── <dataset>_metapredict_mean_disorder_density_scipy.png
      │
      ├── psauron/                              (only if --run_psauron)
      │    └── <dataset>_psauron.csv
      ├── psauron_plots/                        (only if --run_psauron)
-     │    └── psauron_categorical_distribution.png
+     │    └── psauron_categorical_distribution_<dataset>.png
      │
+     ├── interpro/                             (only if --run_interpro true)
+     │    ├── <dataset>_interproscan.xml
+     │    └── <dataset>_interproscan.tsv
      └── interpro_plots/                       (only if --run_interpro)
-          ├── interpro_domain_coverage.png
-          ├── interpro_merged_coverage_distribution.png
-          └── interpro_summary.tsv
+          ├── interpro_domain_coverage_<dataset>.png
+          ├── interpro_merged_coverage_distribution_<dataset>.png
+          └── interpro_summary_<dataset>.tsv
 
 Intermediate outputs:
 
@@ -489,7 +583,6 @@ Intermediate outputs:
 - plddt_all_values_<dataset>_all_one.pkl
 - <dataset>_metapredict.csv
 - <dataset>_psauron.csv
-- <dataset>_interproscan.xml / <dataset>_interproscan.tsv     (interpro branch)
 
 ------------------------------------------------------------------------
 ## Example Output Images
@@ -622,6 +715,12 @@ described in `bin/ipr_coverage.README.md`.
 | PLOT_INTERPRO              | Generates InterPro coverage comparison plots                      |
 | GENERATE_REPORT            | Combines per-branch PNGs into the final PDF report                |
 | BUILD_SUMMARY_TSV          | Writes the single-row summary TSV; columns for skipped branches are blank |
+| PLOT_PLDDT_COMBINED        | pLDDT plots with every input together (`--report combined`)       |
+| PLOT_METAPREDICT_COMBINED  | Disorder density with every input together (`--report combined`)  |
+| PLOT_PSAURON_COMBINED      | PSAURON categories with every input together (`--report combined`) |
+| PLOT_INTERPRO_COMBINED     | InterPro coverage plots with every input together (`--report combined`) |
+| GENERATE_COMBINED_REPORT   | Builds `<combined_name>_report.pdf` from the combined plots       |
+| COMBINE_SUMMARY_TSV        | Joins the per-input summary rows into `<combined_name>_summary.tsv` |
 
 ------------------------------------------------------------------------
 
